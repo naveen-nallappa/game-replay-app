@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚾ Game Replay - Spoiler-Free Experience</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 10px rgba(217, 119, 6, 0.5); }
+      50% { box-shadow: 0 0 20px rgba(217, 119, 6, 0.8); }
+    }
+    .winning-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+    @keyframes flip-down {
+      0% { transform: rotateX(0deg); }
+      50% { transform: rotateX(90deg); }
+      100% { transform: rotateX(0deg); }
+    }
+    .flip-animate { animation: flip-down 0.3s ease-in-out; }
+
+    .scoreboard-digit {
+      background: linear-gradient(180deg, #1f1f1f 0%, #0a0a0a 50%, #1a1a1a 50%, #0f0f0f 100%);
+      border: 1px solid #333;
+      position: relative;
+    }
+    .scoreboard-digit::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: #222;
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #1a1a1a; }
+    ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+    /* Celebration animations */
+    @keyframes dance {
+      0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+      15% { transform: translateY(-8px) rotate(-3deg) scale(1.02); }
+      30% { transform: translateY(0) rotate(3deg) scale(1); }
+      45% { transform: translateY(-6px) rotate(-2deg) scale(1.01); }
+      60% { transform: translateY(0) rotate(2deg) scale(1); }
+      75% { transform: translateY(-4px) rotate(-1deg) scale(1.01); }
+      90% { transform: translateY(0) rotate(1deg) scale(1); }
+    }
+    .dance-celebrate {
+      animation: dance 0.8s ease-in-out;
+    }
+
+    @keyframes firework-burst {
+      0% { transform: scale(0); opacity: 1; }
+      50% { opacity: 1; }
+      100% { transform: scale(1); opacity: 0; }
+    }
+
+    @keyframes firework-particle {
+      0% { transform: translate(0, 0) scale(1); opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    @keyframes score-flash {
+      0%, 100% { color: inherit; }
+      25% { color: #fbbf24; text-shadow: 0 0 10px #fbbf24; }
+      50% { color: #f59e0b; text-shadow: 0 0 15px #f59e0b; }
+      75% { color: #fbbf24; text-shadow: 0 0 10px #fbbf24; }
+    }
+    .score-celebrate {
+      animation: score-flash 0.5s ease-in-out 3;
+    }
+
+    @keyframes sparkle {
+      0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+      50% { opacity: 1; transform: scale(1) rotate(180deg); }
+    }
+  </style>
+</head>
+<body class="bg-gray-950">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // Fireworks celebration component
+    const Fireworks = ({ active, duration = 2000 }) => {
+      const [particles, setParticles] = useState([]);
+      const [show, setShow] = useState(false);
+
+      useEffect(() => {
+        if (active) {
+          setShow(true);
+          // Create multiple firework bursts
+          const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6b9d', '#c44dff', '#ff8c42'];
+          const newParticles = [];
+
+          // Create 3-5 firework bursts at random positions
+          const numBursts = 3 + Math.floor(Math.random() * 3);
+          for (let burst = 0; burst < numBursts; burst++) {
+            const centerX = 20 + Math.random() * 60; // 20-80% of container width
+            const centerY = 20 + Math.random() * 40; // 20-60% of container height
+            const numParticles = 12 + Math.floor(Math.random() * 8);
+            const burstDelay = burst * 200; // Stagger bursts
+
+            for (let i = 0; i < numParticles; i++) {
+              const angle = (i / numParticles) * Math.PI * 2;
+              const velocity = 50 + Math.random() * 50;
+              const color = colors[Math.floor(Math.random() * colors.length)];
+              newParticles.push({
+                id: `${burst}-${i}`,
+                x: centerX,
+                y: centerY,
+                dx: Math.cos(angle) * velocity,
+                dy: Math.sin(angle) * velocity,
+                color,
+                size: 3 + Math.random() * 4,
+                delay: burstDelay,
+                duration: 800 + Math.random() * 400,
+              });
+            }
+          }
+          setParticles(newParticles);
+
+          const timer = setTimeout(() => {
+            setShow(false);
+            setParticles([]);
+          }, duration);
+          return () => clearTimeout(timer);
+        }
+      }, [active, duration]);
+
+      if (!show) return null;
+
+      return (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
+          {particles.map(p => (
+            <div
+              key={p.id}
+              className="absolute rounded-full"
+              style={{
+                left: `${p.x}%`,
+                top: `${p.y}%`,
+                width: p.size,
+                height: p.size,
+                backgroundColor: p.color,
+                boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
+                animation: `firework-particle ${p.duration}ms ease-out ${p.delay}ms forwards`,
+                transform: `translate(${p.dx}px, ${p.dy}px)`,
+              }}
+            />
+          ))}
+          {/* Sparkle emoji bursts */}
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={`sparkle-${i}`}
+              className="absolute text-2xl"
+              style={{
+                left: `${15 + Math.random() * 70}%`,
+                top: `${10 + Math.random() * 50}%`,
+                animation: `sparkle ${600 + Math.random() * 400}ms ease-out ${i * 150}ms`,
+              }}
+            >
+              {['✨', '🎆', '⭐', '💥', '🌟'][Math.floor(Math.random() * 5)]}
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    // MLB Teams data
+    const MLB_TEAMS = {
+      108: { name: "Angels", abbreviation: "LAA", color: "#BA0021" },
+      109: { name: "Diamondbacks", abbreviation: "ARI", color: "#A71930" },
+      110: { name: "Orioles", abbreviation: "BAL", color: "#DF4601" },
+      111: { name: "Red Sox", abbreviation: "BOS", color: "#BD3039" },
+      112: { name: "Cubs", abbreviation: "CHC", color: "#0E3386" },
+      113: { name: "Reds", abbreviation: "CIN", color: "#C6011F" },
+      114: { name: "Guardians", abbreviation: "CLE", color: "#00385D" },
+      115: { name: "Rockies", abbreviation: "COL", color: "#333366" },
+      116: { name: "Tigers", abbreviation: "DET", color: "#0C2340" },
+      117: { name: "Astros", abbreviation: "HOU", color: "#002D62" },
+      118: { name: "Royals", abbreviation: "KC", color: "#004687" },
+      119: { name: "Dodgers", abbreviation: "LAD", color: "#005A9C" },
+      120: { name: "Nationals", abbreviation: "WSH", color: "#AB0003" },
+      121: { name: "Mets", abbreviation: "NYM", color: "#002D72" },
+      133: { name: "Athletics", abbreviation: "OAK", color: "#003831" },
+      134: { name: "Pirates", abbreviation: "PIT", color: "#27251F" },
+      135: { name: "Padres", abbreviation: "SD", color: "#2F241D" },
+      136: { name: "Mariners", abbreviation: "SEA", color: "#0C2C56" },
+      137: { name: "Giants", abbreviation: "SF", color: "#FD5A1E" },
+      138: { name: "Cardinals", abbreviation: "STL", color: "#C41E3A" },
+      139: { name: "Rays", abbreviation: "TB", color: "#092C5C" },
+      140: { name: "Rangers", abbreviation: "TEX", color: "#003278" },
+      141: { name: "Blue Jays", abbreviation: "TOR", color: "#134A8E" },
+      142: { name: "Twins", abbreviation: "MIN", color: "#002B5C" },
+      143: { name: "Phillies", abbreviation: "PHI", color: "#E81828" },
+      144: { name: "Braves", abbreviation: "ATL", color: "#CE1141" },
+      145: { name: "White Sox", abbreviation: "CWS", color: "#27251F" },
+      146: { name: "Marlins", abbreviation: "MIA", color: "#00A3E0" },
+      147: { name: "Yankees", abbreviation: "NYY", color: "#003087" },
+      158: { name: "Brewers", abbreviation: "MIL", color: "#12284B" }
+    };
+
+    // Static game data for demo - with ALL plays, not just scoring
+    const STATIC_GAME_DATA = {
+      homeTeam: { name: "Yankees", abbreviation: "NYY", color: "#003087" },
+      awayTeam: { name: "Red Sox", abbreviation: "BOS", color: "#BD3039" },
+      date: "October 5, 2024",
+      venue: "Yankee Stadium",
+      // Half-innings: each entry is [inningNum, isTop, runsScored]
+      halfInnings: [
+        { inning: 1, isTop: true, runs: 2 },
+        { inning: 1, isTop: false, runs: 0 },
+        { inning: 2, isTop: true, runs: 0 },
+        { inning: 2, isTop: false, runs: 1 },
+        { inning: 3, isTop: true, runs: 1 },
+        { inning: 3, isTop: false, runs: 0 },
+        { inning: 4, isTop: true, runs: 0 },
+        { inning: 4, isTop: false, runs: 2 },
+        { inning: 5, isTop: true, runs: 0 },
+        { inning: 5, isTop: false, runs: 0 },
+        { inning: 6, isTop: true, runs: 3 },
+        { inning: 6, isTop: false, runs: 1 },
+        { inning: 7, isTop: true, runs: 0 },
+        { inning: 7, isTop: false, runs: 0 },
+        { inning: 8, isTop: true, runs: 0 },
+        { inning: 8, isTop: false, runs: 3 },
+        { inning: 9, isTop: true, runs: 0 },
+        { inning: 9, isTop: false, runs: 2 },
+      ],
+      // ALL plays - with baserunner state { first, second, third } and outs
+      plays: [
+        // Top 1st
+        { inning: 1, isTop: true, batter: "Duran", event: "Flyout to CF", isScoring: false, awayScore: 0, homeScore: 0, outs: 1, bases: {} },
+        { inning: 1, isTop: true, batter: "Devers", event: "Single to LF", isScoring: false, awayScore: 0, homeScore: 0, outs: 1, bases: { first: true } },
+        { inning: 1, isTop: true, batter: "Martinez", event: "2-run Home Run to LF", isScoring: true, awayScore: 2, homeScore: 0, outs: 1, bases: {} },
+        { inning: 1, isTop: true, batter: "Bogaerts", event: "Groundout to SS", isScoring: false, awayScore: 2, homeScore: 0, outs: 2, bases: {} },
+        { inning: 1, isTop: true, batter: "Verdugo", event: "Strikeout", isScoring: false, awayScore: 2, homeScore: 0, outs: 3, bases: {} },
+        // Bottom 1st
+        { inning: 1, isTop: false, batter: "Torres", event: "Groundout to 2B", isScoring: false, awayScore: 2, homeScore: 0, outs: 1, bases: {} },
+        { inning: 1, isTop: false, batter: "Judge", event: "Strikeout", isScoring: false, awayScore: 2, homeScore: 0, outs: 2, bases: {} },
+        { inning: 1, isTop: false, batter: "Stanton", event: "Flyout to RF", isScoring: false, awayScore: 2, homeScore: 0, outs: 3, bases: {} },
+        // Top 2nd
+        { inning: 2, isTop: true, batter: "Casas", event: "Flyout to LF", isScoring: false, awayScore: 2, homeScore: 0, outs: 1, bases: {} },
+        { inning: 2, isTop: true, batter: "Hernandez", event: "Groundout to 1B", isScoring: false, awayScore: 2, homeScore: 0, outs: 2, bases: {} },
+        { inning: 2, isTop: true, batter: "McGuire", event: "Strikeout", isScoring: false, awayScore: 2, homeScore: 0, outs: 3, bases: {} },
+        // Bottom 2nd
+        { inning: 2, isTop: false, batter: "Rizzo", event: "Walk", isScoring: false, awayScore: 2, homeScore: 0, outs: 0, bases: { first: true } },
+        { inning: 2, isTop: false, batter: "Volpe", event: "Single to RF", isScoring: false, awayScore: 2, homeScore: 0, outs: 0, bases: { first: true, second: true } },
+        { inning: 2, isTop: false, batter: "Cabrera", event: "Flyout to CF", isScoring: false, awayScore: 2, homeScore: 0, outs: 1, bases: { first: true, second: true } },
+        { inning: 2, isTop: false, batter: "Higashioka", event: "Groundout, Rizzo scores", isScoring: true, awayScore: 2, homeScore: 1, outs: 2, bases: { second: true } },
+        { inning: 2, isTop: false, batter: "Torres", event: "Flyout to LF", isScoring: false, awayScore: 2, homeScore: 1, outs: 3, bases: {} },
+        // Top 3rd
+        { inning: 3, isTop: true, batter: "Duran", event: "Groundout to SS", isScoring: false, awayScore: 2, homeScore: 1, outs: 1, bases: {} },
+        { inning: 3, isTop: true, batter: "Devers", event: "Solo Home Run to RF", isScoring: true, awayScore: 3, homeScore: 1, outs: 1, bases: {} },
+        { inning: 3, isTop: true, batter: "Martinez", event: "Strikeout", isScoring: false, awayScore: 3, homeScore: 1, outs: 2, bases: {} },
+        { inning: 3, isTop: true, batter: "Bogaerts", event: "Flyout to CF", isScoring: false, awayScore: 3, homeScore: 1, outs: 3, bases: {} },
+        // Bottom 3rd
+        { inning: 3, isTop: false, batter: "Judge", event: "Single to CF", isScoring: false, awayScore: 3, homeScore: 1, outs: 0, bases: { first: true } },
+        { inning: 3, isTop: false, batter: "Stanton", event: "Double Play", isScoring: false, awayScore: 3, homeScore: 1, outs: 2, bases: {} },
+        { inning: 3, isTop: false, batter: "Rizzo", event: "Groundout to 2B", isScoring: false, awayScore: 3, homeScore: 1, outs: 3, bases: {} },
+        // Top 4th
+        { inning: 4, isTop: true, batter: "Verdugo", event: "Flyout to RF", isScoring: false, awayScore: 3, homeScore: 1, outs: 1, bases: {} },
+        { inning: 4, isTop: true, batter: "Casas", event: "Strikeout", isScoring: false, awayScore: 3, homeScore: 1, outs: 2, bases: {} },
+        { inning: 4, isTop: true, batter: "Hernandez", event: "Groundout to 3B", isScoring: false, awayScore: 3, homeScore: 1, outs: 3, bases: {} },
+        // Bottom 4th
+        { inning: 4, isTop: false, batter: "Volpe", event: "Walk", isScoring: false, awayScore: 3, homeScore: 1, outs: 0, bases: { first: true } },
+        { inning: 4, isTop: false, batter: "Cabrera", event: "Single to RF", isScoring: false, awayScore: 3, homeScore: 1, outs: 0, bases: { first: true, third: true } },
+        { inning: 4, isTop: false, batter: "Higashioka", event: "Strikeout", isScoring: false, awayScore: 3, homeScore: 1, outs: 1, bases: { first: true, third: true } },
+        { inning: 4, isTop: false, batter: "Torres", event: "Flyout to CF", isScoring: false, awayScore: 3, homeScore: 1, outs: 2, bases: { first: true, third: true } },
+        { inning: 4, isTop: false, batter: "Judge", event: "2-run Double to LF", isScoring: true, awayScore: 3, homeScore: 3, outs: 2, bases: { second: true } },
+        { inning: 4, isTop: false, batter: "Stanton", event: "Groundout to SS", isScoring: false, awayScore: 3, homeScore: 3, outs: 3, bases: {} },
+        // Top 5th
+        { inning: 5, isTop: true, batter: "McGuire", event: "Groundout to 1B", isScoring: false, awayScore: 3, homeScore: 3, outs: 1, bases: {} },
+        { inning: 5, isTop: true, batter: "Duran", event: "Strikeout", isScoring: false, awayScore: 3, homeScore: 3, outs: 2, bases: {} },
+        { inning: 5, isTop: true, batter: "Devers", event: "Flyout to LF", isScoring: false, awayScore: 3, homeScore: 3, outs: 3, bases: {} },
+        // Bottom 5th
+        { inning: 5, isTop: false, batter: "Rizzo", event: "Strikeout", isScoring: false, awayScore: 3, homeScore: 3, outs: 1, bases: {} },
+        { inning: 5, isTop: false, batter: "Volpe", event: "Groundout to SS", isScoring: false, awayScore: 3, homeScore: 3, outs: 2, bases: {} },
+        { inning: 5, isTop: false, batter: "Cabrera", event: "Flyout to RF", isScoring: false, awayScore: 3, homeScore: 3, outs: 3, bases: {} },
+        // Top 6th
+        { inning: 6, isTop: true, batter: "Martinez", event: "Walk", isScoring: false, awayScore: 3, homeScore: 3, outs: 0, bases: { first: true } },
+        { inning: 6, isTop: true, batter: "Bogaerts", event: "Single to CF", isScoring: false, awayScore: 3, homeScore: 3, outs: 0, bases: { first: true, second: true } },
+        { inning: 6, isTop: true, batter: "Verdugo", event: "RBI Single to RF", isScoring: true, awayScore: 4, homeScore: 3, outs: 0, bases: { first: true, third: true } },
+        { inning: 6, isTop: true, batter: "Casas", event: "2-run Home Run to CF", isScoring: true, awayScore: 6, homeScore: 3, outs: 0, bases: {} },
+        { inning: 6, isTop: true, batter: "Hernandez", event: "Strikeout", isScoring: false, awayScore: 6, homeScore: 3, outs: 1, bases: {} },
+        { inning: 6, isTop: true, batter: "McGuire", event: "Groundout to 2B", isScoring: false, awayScore: 6, homeScore: 3, outs: 2, bases: {} },
+        // Bottom 6th
+        { inning: 6, isTop: false, batter: "Higashioka", event: "Strikeout", isScoring: false, awayScore: 6, homeScore: 3, outs: 1, bases: {} },
+        { inning: 6, isTop: false, batter: "Torres", event: "Solo Home Run to LF", isScoring: true, awayScore: 6, homeScore: 4, outs: 1, bases: {} },
+        { inning: 6, isTop: false, batter: "Judge", event: "Flyout to CF", isScoring: false, awayScore: 6, homeScore: 4, outs: 2, bases: {} },
+        { inning: 6, isTop: false, batter: "Stanton", event: "Strikeout", isScoring: false, awayScore: 6, homeScore: 4, outs: 3, bases: {} },
+        // Top 7th
+        { inning: 7, isTop: true, batter: "Duran", event: "Flyout to LF", isScoring: false, awayScore: 6, homeScore: 4, outs: 1, bases: {} },
+        { inning: 7, isTop: true, batter: "Devers", event: "Groundout to 3B", isScoring: false, awayScore: 6, homeScore: 4, outs: 2, bases: {} },
+        { inning: 7, isTop: true, batter: "Martinez", event: "Strikeout", isScoring: false, awayScore: 6, homeScore: 4, outs: 3, bases: {} },
+        // Bottom 7th
+        { inning: 7, isTop: false, batter: "Rizzo", event: "Flyout to RF", isScoring: false, awayScore: 6, homeScore: 4, outs: 1, bases: {} },
+        { inning: 7, isTop: false, batter: "Volpe", event: "Single to CF", isScoring: false, awayScore: 6, homeScore: 4, outs: 1, bases: { first: true } },
+        { inning: 7, isTop: false, batter: "Cabrera", event: "Double Play", isScoring: false, awayScore: 6, homeScore: 4, outs: 3, bases: {} },
+        // Top 8th
+        { inning: 8, isTop: true, batter: "Bogaerts", event: "Groundout to 1B", isScoring: false, awayScore: 6, homeScore: 4, outs: 1, bases: {} },
+        { inning: 8, isTop: true, batter: "Verdugo", event: "Strikeout", isScoring: false, awayScore: 6, homeScore: 4, outs: 2, bases: {} },
+        { inning: 8, isTop: true, batter: "Casas", event: "Flyout to CF", isScoring: false, awayScore: 6, homeScore: 4, outs: 3, bases: {} },
+        // Bottom 8th - THE COMEBACK
+        { inning: 8, isTop: false, batter: "Higashioka", event: "Walk", isScoring: false, awayScore: 6, homeScore: 4, outs: 0, bases: { first: true } },
+        { inning: 8, isTop: false, batter: "Torres", event: "Single to RF", isScoring: false, awayScore: 6, homeScore: 4, outs: 0, bases: { first: true, second: true } },
+        { inning: 8, isTop: false, batter: "Judge", event: "Flyout to CF", isScoring: false, awayScore: 6, homeScore: 4, outs: 1, bases: { first: true, second: true } },
+        { inning: 8, isTop: false, batter: "Rizzo", event: "2-run Home Run to RF!", isScoring: true, awayScore: 6, homeScore: 6, outs: 1, bases: {} },
+        { inning: 8, isTop: false, batter: "Volpe", event: "RBI Triple to RF!", isScoring: true, awayScore: 6, homeScore: 7, outs: 1, bases: { third: true } },
+        { inning: 8, isTop: false, batter: "Cabrera", event: "Strikeout", isScoring: false, awayScore: 6, homeScore: 7, outs: 2, bases: { third: true } },
+        // Top 9th
+        { inning: 9, isTop: true, batter: "Hernandez", event: "Groundout to SS", isScoring: false, awayScore: 6, homeScore: 7, outs: 1, bases: {} },
+        { inning: 9, isTop: true, batter: "McGuire", event: "Flyout to LF", isScoring: false, awayScore: 6, homeScore: 7, outs: 2, bases: {} },
+        { inning: 9, isTop: true, batter: "Duran", event: "Strikeout", isScoring: false, awayScore: 6, homeScore: 7, outs: 3, bases: {} },
+        // Bottom 9th - WALK OFF!
+        { inning: 9, isTop: false, batter: "Stanton", event: "Single to CF", isScoring: false, awayScore: 6, homeScore: 7, outs: 0, bases: { first: true } },
+        { inning: 9, isTop: false, batter: "Judge", event: "WALK-OFF 2-run HR to CF! 🎉", isScoring: true, awayScore: 6, homeScore: 9, outs: 0, bases: {} },
+      ],
+      // Pitch-by-pitch data for select at-bats (dramatic moments)
+      pitches: [
+        // Martinez 2-run HR - Top 1st (play index 2)
+        { playIndex: 2, pitchNum: 1, type: "Fastball", speed: 95, result: "Ball", balls: 1, strikes: 0, batter: "Martinez", inning: 1, isTop: true, bases: { first: true }, outs: 1, awayScore: 0, homeScore: 0 },
+        { playIndex: 2, pitchNum: 2, type: "Slider", speed: 87, result: "Strike (swinging)", balls: 1, strikes: 1, batter: "Martinez", inning: 1, isTop: true, bases: { first: true }, outs: 1, awayScore: 0, homeScore: 0 },
+        { playIndex: 2, pitchNum: 3, type: "Fastball", speed: 96, result: "Foul", balls: 1, strikes: 2, batter: "Martinez", inning: 1, isTop: true, bases: { first: true }, outs: 1, awayScore: 0, homeScore: 0 },
+        { playIndex: 2, pitchNum: 4, type: "Changeup", speed: 84, result: "Ball", balls: 2, strikes: 2, batter: "Martinez", inning: 1, isTop: true, bases: { first: true }, outs: 1, awayScore: 0, homeScore: 0 },
+        { playIndex: 2, pitchNum: 5, type: "Fastball", speed: 94, result: "HOME RUN! 💥", balls: 2, strikes: 2, batter: "Martinez", inning: 1, isTop: true, bases: {}, outs: 1, awayScore: 2, homeScore: 0, isResult: true },
+
+        // Judge 2-run Double - Bottom 4th (play index 30)
+        { playIndex: 30, pitchNum: 1, type: "Sinker", speed: 93, result: "Strike (called)", balls: 0, strikes: 1, batter: "Judge", inning: 4, isTop: false, bases: { first: true, third: true }, outs: 2, awayScore: 3, homeScore: 1 },
+        { playIndex: 30, pitchNum: 2, type: "Slider", speed: 86, result: "Ball", balls: 1, strikes: 1, batter: "Judge", inning: 4, isTop: false, bases: { first: true, third: true }, outs: 2, awayScore: 3, homeScore: 1 },
+        { playIndex: 30, pitchNum: 3, type: "Fastball", speed: 97, result: "Foul", balls: 1, strikes: 2, batter: "Judge", inning: 4, isTop: false, bases: { first: true, third: true }, outs: 2, awayScore: 3, homeScore: 1 },
+        { playIndex: 30, pitchNum: 4, type: "Fastball", speed: 96, result: "Foul", balls: 1, strikes: 2, batter: "Judge", inning: 4, isTop: false, bases: { first: true, third: true }, outs: 2, awayScore: 3, homeScore: 1 },
+        { playIndex: 30, pitchNum: 5, type: "Changeup", speed: 85, result: "2-RUN DOUBLE! 💥", balls: 1, strikes: 2, batter: "Judge", inning: 4, isTop: false, bases: { second: true }, outs: 2, awayScore: 3, homeScore: 3, isResult: true },
+
+        // Rizzo 2-run HR - Bottom 8th (play index 65)
+        { playIndex: 65, pitchNum: 1, type: "Fastball", speed: 94, result: "Ball", balls: 1, strikes: 0, batter: "Rizzo", inning: 8, isTop: false, bases: { first: true, second: true }, outs: 1, awayScore: 6, homeScore: 4 },
+        { playIndex: 65, pitchNum: 2, type: "Curveball", speed: 79, result: "Strike (swinging)", balls: 1, strikes: 1, batter: "Rizzo", inning: 8, isTop: false, bases: { first: true, second: true }, outs: 1, awayScore: 6, homeScore: 4 },
+        { playIndex: 65, pitchNum: 3, type: "Fastball", speed: 95, result: "Foul", balls: 1, strikes: 2, batter: "Rizzo", inning: 8, isTop: false, bases: { first: true, second: true }, outs: 1, awayScore: 6, homeScore: 4 },
+        { playIndex: 65, pitchNum: 4, type: "Slider", speed: 87, result: "Ball", balls: 2, strikes: 2, batter: "Rizzo", inning: 8, isTop: false, bases: { first: true, second: true }, outs: 1, awayScore: 6, homeScore: 4 },
+        { playIndex: 65, pitchNum: 5, type: "Slider", speed: 86, result: "Ball", balls: 3, strikes: 2, batter: "Rizzo", inning: 8, isTop: false, bases: { first: true, second: true }, outs: 1, awayScore: 6, homeScore: 4 },
+        { playIndex: 65, pitchNum: 6, type: "Fastball", speed: 93, result: "2-RUN HOME RUN! 💥", balls: 3, strikes: 2, batter: "Rizzo", inning: 8, isTop: false, bases: {}, outs: 1, awayScore: 6, homeScore: 6, isResult: true },
+
+        // Walk-off Judge HR - Bottom 9th (play index 69)
+        { playIndex: 69, pitchNum: 1, type: "Fastball", speed: 96, result: "Strike (called)", balls: 0, strikes: 1, batter: "Judge", inning: 9, isTop: false, bases: { first: true }, outs: 0, awayScore: 6, homeScore: 7 },
+        { playIndex: 69, pitchNum: 2, type: "Slider", speed: 88, result: "Ball", balls: 1, strikes: 1, batter: "Judge", inning: 9, isTop: false, bases: { first: true }, outs: 0, awayScore: 6, homeScore: 7 },
+        { playIndex: 69, pitchNum: 3, type: "Fastball", speed: 97, result: "Foul", balls: 1, strikes: 2, batter: "Judge", inning: 9, isTop: false, bases: { first: true }, outs: 0, awayScore: 6, homeScore: 7 },
+        { playIndex: 69, pitchNum: 4, type: "Fastball", speed: 95, result: "Ball", balls: 2, strikes: 2, batter: "Judge", inning: 9, isTop: false, bases: { first: true }, outs: 0, awayScore: 6, homeScore: 7 },
+        { playIndex: 69, pitchNum: 5, type: "Slider", speed: 87, result: "Foul", balls: 2, strikes: 2, batter: "Judge", inning: 9, isTop: false, bases: { first: true }, outs: 0, awayScore: 6, homeScore: 7 },
+        { playIndex: 69, pitchNum: 6, type: "Slider", speed: 85, result: "Foul", balls: 2, strikes: 2, batter: "Judge", inning: 9, isTop: false, bases: { first: true }, outs: 0, awayScore: 6, homeScore: 7 },
+        { playIndex: 69, pitchNum: 7, type: "Fastball", speed: 94, result: "WALK-OFF HOME RUN! 🎉💥", balls: 2, strikes: 2, batter: "Judge", inning: 9, isTop: false, bases: {}, outs: 0, awayScore: 6, homeScore: 9, isResult: true },
+      ]
+    };
+
+    // API Functions
+    const fetchGamesForDate = async (date) => {
+      try {
+        const response = await fetch(
+          `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${date}&hydrate=linescore,team`
+        );
+        const data = await response.json();
+        return data.dates?.[0]?.games || [];
+      } catch (error) {
+        console.error('Error fetching games:', error);
+        return [];
+      }
+    };
+
+    const fetchGameDetails = async (gamePk) => {
+      try {
+        const [linescoreRes, playsRes] = await Promise.all([
+          fetch(`https://statsapi.mlb.com/api/v1.1/game/${gamePk}/feed/live`),
+          fetch(`https://statsapi.mlb.com/api/v1/game/${gamePk}/playByPlay`)
+        ]);
+        const linescoreData = await linescoreRes.json();
+        const playsData = await playsRes.json();
+        return { linescore: linescoreData, plays: playsData };
+      } catch (error) {
+        console.error('Error fetching game details:', error);
+        return null;
+      }
+    };
+
+    const parseGameData = (gameData, playsData) => {
+      const game = gameData.gameData;
+      const linescore = gameData.liveData?.linescore;
+      if (!game || !linescore) return null;
+
+      const homeTeamId = game.teams.home.id;
+      const awayTeamId = game.teams.away.id;
+
+      const homeTeamInfo = MLB_TEAMS[homeTeamId] || {
+        name: game.teams.home.name,
+        abbreviation: game.teams.home.abbreviation,
+        color: "#333333"
+      };
+      const awayTeamInfo = MLB_TEAMS[awayTeamId] || {
+        name: game.teams.away.name,
+        abbreviation: game.teams.away.abbreviation,
+        color: "#666666"
+      };
+
+      // Build half-innings array
+      const halfInnings = [];
+      linescore.innings?.forEach(inning => {
+        halfInnings.push({ inning: inning.num, isTop: true, runs: inning.away?.runs || 0 });
+        // Only add bottom if it was played
+        if (inning.home?.runs !== undefined) {
+          halfInnings.push({ inning: inning.num, isTop: false, runs: inning.home?.runs || 0 });
+        }
+      });
+
+      // Parse ALL plays with outs, base runners, and pitches
+      const plays = [];
+      const pitches = [];
+      let currentAwayScore = 0;
+      let currentHomeScore = 0;
+      let playIndex = 0;
+
+      // Track base state cumulatively (resets each half-inning)
+      let currentBases = { first: false, second: false, third: false };
+      let lastHalfInning = null;
+
+      if (playsData?.allPlays) {
+        playsData.allPlays.forEach(play => {
+          if (play.result?.event && play.about?.inning) {
+            const isTop = play.about.isTopInning;
+            const halfInningKey = `${play.about.inning}-${isTop}`;
+            const isScoring = play.about?.isScoringPlay || false;
+
+            // Reset bases at start of each half-inning
+            if (halfInningKey !== lastHalfInning) {
+              currentBases = { first: false, second: false, third: false };
+              lastHalfInning = halfInningKey;
+            }
+
+            if (isScoring) {
+              const runs = play.result.rbi || 1;
+              if (isTop) currentAwayScore += runs;
+              else currentHomeScore += runs;
+            }
+
+            const batter = play.matchup?.batter?.fullName?.split(' ').pop() || 'Unknown';
+            const batterFull = play.matchup?.batter?.fullName || 'Unknown';
+            const pitcher = play.matchup?.pitcher?.fullName?.split(' ').pop() || 'Unknown';
+
+            // Get outs after this play
+            const outs = play.count?.outs ?? 0;
+
+            // Save pre-play base state for pitches (bases at start of at-bat)
+            const basesBeforePlay = {
+              first: currentBases.first,
+              second: currentBases.second,
+              third: currentBases.third
+            };
+
+            // Parse runners on base after play using cumulative tracking
+            // First, process all runner movements to update base state
+            const basesAfterPlay = { first: false, second: false, third: false };
+
+            if (play.runners && play.runners.length > 0) {
+              // Track which bases were vacated and which are now occupied
+              const vacated = new Set();
+              const occupied = new Set();
+
+              play.runners.forEach(runner => {
+                const start = runner.movement?.start;
+                const end = runner.movement?.end;
+                const isOut = runner.movement?.isOut;
+
+                // Mark starting base as vacated (runner left this base)
+                if (start && start !== 'batter') {
+                  vacated.add(start);
+                }
+
+                // Mark ending base as occupied (unless runner scored or is out)
+                if (end && !isOut) {
+                  if (end === '1B') occupied.add('1B');
+                  else if (end === '2B') occupied.add('2B');
+                  else if (end === '3B') occupied.add('3B');
+                  // 'score' or '4B' means they scored, not on base
+                }
+              });
+
+              // Start with current bases, remove vacated, add newly occupied
+              if (currentBases.first && !vacated.has('1B')) basesAfterPlay.first = true;
+              if (currentBases.second && !vacated.has('2B')) basesAfterPlay.second = true;
+              if (currentBases.third && !vacated.has('3B')) basesAfterPlay.third = true;
+
+              // Add newly occupied bases
+              if (occupied.has('1B')) basesAfterPlay.first = true;
+              if (occupied.has('2B')) basesAfterPlay.second = true;
+              if (occupied.has('3B')) basesAfterPlay.third = true;
+            } else {
+              // No runner data, keep current state (shouldn't happen often)
+              basesAfterPlay.first = currentBases.first;
+              basesAfterPlay.second = currentBases.second;
+              basesAfterPlay.third = currentBases.third;
+            }
+
+            // Update current bases for next play
+            currentBases = { ...basesAfterPlay };
+            const bases = basesAfterPlay;
+
+            // Parse pitch-by-pitch data from playEvents
+            let pitchNum = 0;
+            if (play.playEvents) {
+              play.playEvents.forEach(event => {
+                if (event.isPitch) {
+                  pitchNum++;
+                  const pitchType = event.details?.type?.description || 'Unknown';
+                  const speed = event.pitchData?.startSpeed ? Math.round(event.pitchData.startSpeed) : null;
+                  const result = event.details?.description || 'Unknown';
+                  const balls = event.count?.balls ?? 0;
+                  const strikes = event.count?.strikes ?? 0;
+
+                  // Use pre-play base state (bases at start of this at-bat)
+                  pitches.push({
+                    playIndex: playIndex,
+                    pitchNum: pitchNum,
+                    type: pitchType,
+                    speed: speed,
+                    result: result,
+                    balls: balls,
+                    strikes: strikes,
+                    batter: batterFull,
+                    pitcher: pitcher,
+                    inning: play.about.inning,
+                    isTop: isTop,
+                    outs: event.count?.outs ?? 0,
+                    bases: { ...basesBeforePlay },
+                    awayScore: currentAwayScore,
+                    homeScore: currentHomeScore,
+                    isFinal: false
+                  });
+                }
+              });
+
+              // Mark the last pitch of this at-bat as final (the result)
+              if (pitches.length > 0 && pitchNum > 0) {
+                const lastPitchIdx = pitches.length - 1;
+                pitches[lastPitchIdx].isFinal = true;
+                pitches[lastPitchIdx].finalResult = play.result.event;
+                pitches[lastPitchIdx].outs = outs;
+                pitches[lastPitchIdx].bases = bases;
+                pitches[lastPitchIdx].awayScore = currentAwayScore;
+                pitches[lastPitchIdx].homeScore = currentHomeScore;
+              }
+            }
+
+            plays.push({
+              inning: play.about.inning,
+              isTop: isTop,
+              batter: batter,
+              event: play.result.event,
+              isScoring: isScoring,
+              awayScore: currentAwayScore,
+              homeScore: currentHomeScore,
+              outs: outs,
+              bases: bases
+            });
+
+            playIndex++;
+          }
+        });
+      }
+
+      // Fallback: generate basic plays from innings if API didn't provide them
+      if (plays.length === 0 && halfInnings.length > 0) {
+        halfInnings.forEach((hi) => {
+          if (hi.runs > 0) {
+            if (hi.isTop) currentAwayScore += hi.runs;
+            else currentHomeScore += hi.runs;
+            plays.push({
+              inning: hi.inning,
+              isTop: hi.isTop,
+              batter: "Unknown",
+              event: `${hi.runs} run(s) scored`,
+              isScoring: true,
+              awayScore: currentAwayScore,
+              homeScore: currentHomeScore,
+              outs: 3,
+              bases: {}
+            });
+          } else {
+            plays.push({
+              inning: hi.inning,
+              isTop: hi.isTop,
+              batter: "Unknown",
+              event: "Scoreless half-inning",
+              isScoring: false,
+              awayScore: currentAwayScore,
+              homeScore: currentHomeScore,
+              outs: 3,
+              bases: {}
+            });
+          }
+        });
+      }
+
+      return {
+        homeTeam: homeTeamInfo,
+        awayTeam: awayTeamInfo,
+        date: new Date(game.datetime.dateTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+        venue: game.venue?.name || 'Unknown Venue',
+        halfInnings,
+        plays,
+        pitches
+      };
+    };
+
+    // Baseball Diamond Score Bug Component
+    const DiamondScoreBug = ({ bases, outs, inning, isTop, awayTeam, homeTeam, awayScore, homeScore, balls, strikes, showCount, celebrating, scoringTeam }) => {
+      // bases is an object: { first: bool, second: bool, third: bool }
+      const [animationKey, setAnimationKey] = useState(0);
+
+      // Trigger animation when celebrating changes
+      useEffect(() => {
+        if (celebrating) {
+          setAnimationKey(prev => prev + 1);
+        }
+      }, [celebrating]);
+
+      const BaseShape = ({ occupied, position }) => {
+        const positions = {
+          first: { right: '8px', top: '50%', transform: 'translateY(-50%) rotate(45deg)' },
+          second: { left: '50%', top: '8px', transform: 'translateX(-50%) rotate(45deg)' },
+          third: { left: '8px', top: '50%', transform: 'translateY(-50%) rotate(45deg)' },
+        };
+
+        return (
+          <div
+            className={`absolute w-5 h-5 border-2 transition-all duration-300 ${
+              occupied
+                ? 'bg-amber-400 border-amber-500 shadow-lg shadow-amber-400/50'
+                : 'bg-gray-700 border-gray-600'
+            }`}
+            style={positions[position]}
+          />
+        );
+      };
+
+      return (
+        <div
+          key={animationKey}
+          className={`bg-gray-900/95 rounded-xl border p-3 shadow-xl backdrop-blur-sm transition-all ${
+            celebrating
+              ? 'dance-celebrate border-amber-500 shadow-amber-500/30'
+              : 'border-gray-700'
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            {/* Teams and Score */}
+            <div className="flex flex-col gap-1 min-w-[80px]">
+              <div className={`flex items-center justify-between text-sm ${isTop ? 'text-white' : 'text-gray-400'}`}>
+                <span className="font-bold" style={{ color: awayTeam.color }}>{awayTeam.abbreviation}</span>
+                <span className={`font-mono font-bold ml-3 ${celebrating && scoringTeam === 'away' ? 'score-celebrate' : ''}`}>{awayScore}</span>
+              </div>
+              <div className={`flex items-center justify-between text-sm ${!isTop ? 'text-white' : 'text-gray-400'}`}>
+                <span className="font-bold" style={{ color: homeTeam.color }}>{homeTeam.abbreviation}</span>
+                <span className={`font-mono font-bold ml-3 ${celebrating && scoringTeam === 'home' ? 'score-celebrate' : ''}`}>{homeScore}</span>
+              </div>
+            </div>
+
+            {/* Diamond */}
+            <div className="relative w-16 h-16">
+              {/* Diamond outline */}
+              <div className="absolute inset-2 border-2 border-gray-600 rotate-45 bg-gray-800/50"></div>
+              {/* Home plate */}
+              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-500 rotate-45"></div>
+              {/* Bases */}
+              <BaseShape position="first" occupied={bases?.first} />
+              <BaseShape position="second" occupied={bases?.second} />
+              <BaseShape position="third" occupied={bases?.third} />
+            </div>
+
+            {/* Inning, Outs, and Count */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="text-amber-400 font-bold text-sm">
+                {isTop ? '▲' : '▼'} {inning}
+              </div>
+
+              {/* Ball-Strike Count */}
+              {showCount && (
+                <div className="flex items-center gap-2 text-xs mb-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-500">B</span>
+                    <div className="flex gap-0.5">
+                      {[0, 1, 2, 3].map(i => (
+                        <div
+                          key={i}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            i < (balls || 0) ? 'bg-green-500' : 'bg-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-500">S</span>
+                    <div className="flex gap-0.5">
+                      {[0, 1, 2].map(i => (
+                        <div
+                          key={i}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            i < (strikes || 0) ? 'bg-yellow-500' : 'bg-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Outs */}
+              <div className="flex items-center gap-1">
+                <span className="text-gray-500 text-xs">O</span>
+                <div className="flex gap-0.5">
+                  {[0, 1, 2].map(i => (
+                    <div
+                      key={i}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        i < (outs || 0) ? 'bg-red-500' : 'bg-gray-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // UI Components
+    const FlipDigit = ({ value, size = "large" }) => {
+      const [displayValue, setDisplayValue] = useState(value);
+      const [isFlipping, setIsFlipping] = useState(false);
+      const prevValue = useRef(value);
+
+      useEffect(() => {
+        if (prevValue.current !== value) {
+          setIsFlipping(true);
+          const timer = setTimeout(() => {
+            setDisplayValue(value);
+            setIsFlipping(false);
+          }, 150);
+          prevValue.current = value;
+          return () => clearTimeout(timer);
+        }
+      }, [value]);
+
+      const sizeClasses = size === "large" ? "w-14 h-20 text-5xl" : size === "medium" ? "w-10 h-14 text-3xl" : "w-7 h-10 text-xl";
+
+      return (
+        <div
+          className={`${sizeClasses} scoreboard-digit rounded flex items-center justify-center font-mono font-bold text-amber-400 shadow-lg`}
+          style={{
+            transform: isFlipping ? 'rotateX(90deg)' : 'rotateX(0deg)',
+            transition: 'transform 0.15s ease-in-out',
+            textShadow: '0 0 10px rgba(251, 191, 36, 0.5)'
+          }}
+        >
+          {displayValue}
+        </div>
+      );
+    };
+
+    const ScoreDisplay = ({ score, size = "large" }) => {
+      const digits = String(score).padStart(2, ' ').split('');
+      return (
+        <div className="flex gap-1">
+          {digits.map((digit, i) => (
+            <FlipDigit key={i} value={digit === ' ' ? '' : digit} size={size} />
+          ))}
+        </div>
+      );
+    };
+
+    // Half-inning cell for scoreboard
+    const HalfInningCell = ({ topRuns, bottomRuns, topRevealed, bottomRevealed, isCurrentTop, isCurrentBottom }) => (
+      <div className="flex flex-col border-r border-gray-700">
+        <div className={`w-10 h-5 flex items-center justify-center font-mono text-sm transition-all duration-300 border-b border-gray-800 ${isCurrentTop ? 'bg-amber-900/40' : ''}`}>
+          {topRevealed ? (
+            <span className={`${topRuns > 0 ? 'text-amber-400 font-bold' : 'text-gray-500'}`} style={topRuns > 0 ? { textShadow: '0 0 6px rgba(251, 191, 36, 0.4)' } : {}}>
+              {topRuns}
+            </span>
+          ) : (
+            <span className="text-gray-700">—</span>
+          )}
+        </div>
+        <div className={`w-10 h-5 flex items-center justify-center font-mono text-sm transition-all duration-300 ${isCurrentBottom ? 'bg-amber-900/40' : ''}`}>
+          {bottomRevealed ? (
+            <span className={`${bottomRuns > 0 ? 'text-amber-400 font-bold' : 'text-gray-500'}`} style={bottomRuns > 0 ? { textShadow: '0 0 6px rgba(251, 191, 36, 0.4)' } : {}}>
+              {bottomRuns}
+            </span>
+          ) : (
+            <span className="text-gray-700">—</span>
+          )}
+        </div>
+      </div>
+    );
+
+    const PlayCard = ({ play, homeTeam, awayTeam, isNew, showNonScoring }) => {
+      const team = play.isTop ? awayTeam : homeTeam;
+      const halfLabel = play.isTop ? "▲" : "▼";
+
+      return (
+        <div
+          className={`p-3 rounded-lg border-l-4 mb-2 transition-all duration-500 ${
+            isNew ? 'bg-amber-900/30 animate-pulse' :
+            play.isScoring ? 'bg-gray-800/70' : 'bg-gray-800/30'
+          }`}
+          style={{ borderLeftColor: play.isScoring ? team.color : '#444' }}
+        >
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">{halfLabel} {play.inning}{getOrdinalSuffix(play.inning)}</span>
+                {play.isScoring && <span className="text-xs bg-green-900/50 text-green-400 px-2 py-0.5 rounded">SCORING</span>}
+              </div>
+              <p className={`mt-1 ${play.isScoring ? 'text-white font-medium' : 'text-gray-400'}`}>
+                <span className="font-semibold">{play.batter}</span>: {play.event}
+              </p>
+            </div>
+            <div className="text-right ml-3">
+              <div className="text-xs text-gray-500">{awayTeam.abbreviation} - {homeTeam.abbreviation}</div>
+              <div className={`font-mono font-bold ${play.isScoring ? 'text-amber-400' : 'text-gray-500'}`}>
+                {play.awayScore} - {play.homeScore}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    function getOrdinalSuffix(n) {
+      const s = ["th", "st", "nd", "rd"];
+      const v = n % 100;
+      return s[(v - 20) % 10] || s[v] || s[0];
+    }
+
+    const SpeedButton = ({ speed, currentSpeed, onClick, label }) => (
+      <button
+        onClick={() => onClick(speed)}
+        className={`px-4 py-2 rounded-lg font-medium transition-all ${currentSpeed === speed ? 'bg-amber-600 text-white shadow-lg' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+      >
+        {label}
+      </button>
+    );
+
+    const GameCard = ({ game, onSelect }) => {
+      const homeTeam = MLB_TEAMS[game.teams.home.team.id] || { abbreviation: game.teams.home.team.abbreviation, color: "#333" };
+      const awayTeam = MLB_TEAMS[game.teams.away.team.id] || { abbreviation: game.teams.away.team.abbreviation, color: "#666" };
+      const isFinal = game.status.abstractGameState === "Final";
+
+      return (
+        <button
+          onClick={() => onSelect(game)}
+          disabled={!isFinal}
+          className={`w-full p-4 rounded-xl border transition-all ${isFinal ? 'bg-gray-800/50 border-gray-700 hover:border-amber-600 hover:bg-gray-800 cursor-pointer' : 'bg-gray-900/50 border-gray-800 opacity-50 cursor-not-allowed'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: awayTeam.color }}>
+                {awayTeam.abbreviation?.substring(0, 2) || 'AW'}
+              </div>
+              <span className="text-gray-500 text-xl">@</span>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: homeTeam.color }}>
+                {homeTeam.abbreviation?.substring(0, 2) || 'HM'}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-white font-semibold text-lg">
+                {awayTeam.abbreviation || game.teams.away.team.abbreviation} @ {homeTeam.abbreviation || game.teams.home.team.abbreviation}
+              </div>
+              <div className={`text-sm font-medium ${isFinal ? 'text-green-400' : 'text-yellow-400'}`}>
+                {isFinal ? '✓ Final - Ready to replay' : game.status.detailedState}
+              </div>
+            </div>
+          </div>
+        </button>
+      );
+    };
+
+    // Main App
+    function GameReplayApp() {
+      const [view, setView] = useState('search');
+      const [selectedDate, setSelectedDate] = useState(() => {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        return yesterday.toISOString().split('T')[0];
+      });
+      const [games, setGames] = useState([]);
+      const [isLoadingGames, setIsLoadingGames] = useState(false);
+      const [useStatic, setUseStatic] = useState(false);
+      const [gameData, setGameData] = useState(null);
+      const [mode, setMode] = useState('inning'); // 'inning', 'play', or 'pitch'
+      const [isPlaying, setIsPlaying] = useState(false);
+      const [speed, setSpeed] = useState(2000);
+      const [currentStep, setCurrentStep] = useState(0);
+      const [scoringPlaysOnly, setScoringPlaysOnly] = useState(false);
+      const [celebrating, setCelebrating] = useState(false);
+      const [scoringTeam, setScoringTeam] = useState(null);
+      const prevStepRef = useRef(0);
+
+      // Check if current event is a home run (big event)
+      const isHomeRun = (eventText) => {
+        if (!eventText) return false;
+        const text = eventText.toLowerCase();
+        return text.includes('home run') || text.includes('homer') || text.includes('grand slam');
+      };
+
+      // Detect big events and trigger celebrations
+      useEffect(() => {
+        if (currentStep > prevStepRef.current && gameData) {
+          let currentEvent = null;
+          let isTop = true;
+
+          if (mode === 'play') {
+            const plays = scoringPlaysOnly
+              ? gameData.plays.filter(p => p.isScoring)
+              : gameData.plays;
+            currentEvent = plays[currentStep - 1]?.event;
+            isTop = plays[currentStep - 1]?.isTop;
+          } else if (mode === 'pitch' && gameData.pitches) {
+            const pitch = gameData.pitches[currentStep - 1];
+            if (pitch?.isFinal || pitch?.isResult) {
+              currentEvent = pitch.finalResult || pitch.result;
+              isTop = pitch.isTop;
+            }
+          }
+
+          if (isHomeRun(currentEvent)) {
+            setCelebrating(true);
+            setScoringTeam(isTop ? 'away' : 'home');
+            setTimeout(() => {
+              setCelebrating(false);
+              setScoringTeam(null);
+            }, 2500);
+          }
+        }
+        prevStepRef.current = currentStep;
+      }, [currentStep, mode, gameData, scoringPlaysOnly]);
+
+      // Calculate max steps based on mode
+      const getMaxSteps = () => {
+        if (!gameData) return 0;
+        if (mode === 'inning') {
+          return gameData.halfInnings.length;
+        } else if (mode === 'pitch') {
+          return gameData.pitches?.length || 0;
+        } else {
+          const plays = scoringPlaysOnly
+            ? gameData.plays.filter(p => p.isScoring)
+            : gameData.plays;
+          return plays.length;
+        }
+      };
+
+      const maxSteps = getMaxSteps();
+
+      // Get filtered plays for play-by-play mode
+      const getFilteredPlays = () => {
+        if (!gameData) return [];
+        return scoringPlaysOnly
+          ? gameData.plays.filter(p => p.isScoring)
+          : gameData.plays;
+      };
+
+      useEffect(() => {
+        if (view !== 'search') return;
+        const loadGames = async () => {
+          setIsLoadingGames(true);
+          const fetchedGames = await fetchGamesForDate(selectedDate);
+          setGames(fetchedGames);
+          setIsLoadingGames(false);
+        };
+        loadGames();
+      }, [selectedDate, view]);
+
+      // Calculate scores based on current step
+      const getCurrentScores = useCallback(() => {
+        if (!gameData) return { away: 0, home: 0 };
+
+        if (mode === 'inning') {
+          let away = 0, home = 0;
+          for (let i = 0; i < currentStep; i++) {
+            const hi = gameData.halfInnings[i];
+            if (hi.isTop) away += hi.runs;
+            else home += hi.runs;
+          }
+          return { away, home };
+        } else if (mode === 'pitch') {
+          if (currentStep === 0 || !gameData.pitches) return { away: 0, home: 0 };
+          const lastPitch = gameData.pitches[currentStep - 1];
+          return { away: lastPitch?.awayScore || 0, home: lastPitch?.homeScore || 0 };
+        } else {
+          const plays = getFilteredPlays();
+          if (currentStep === 0) return { away: 0, home: 0 };
+          const lastPlay = plays[currentStep - 1];
+          return { away: lastPlay?.awayScore || 0, home: lastPlay?.homeScore || 0 };
+        }
+      }, [mode, currentStep, gameData, scoringPlaysOnly]);
+
+      const scores = getCurrentScores();
+
+      // Get current half-inning info for display
+      const getCurrentHalfInning = () => {
+        if (!gameData || currentStep === 0) return null;
+        if (mode === 'inning') {
+          return gameData.halfInnings[currentStep - 1];
+        } else if (mode === 'pitch') {
+          return gameData.pitches?.[currentStep - 1];
+        } else {
+          const plays = getFilteredPlays();
+          return plays[currentStep - 1];
+        }
+      };
+
+      const currentHalfInning = getCurrentHalfInning();
+
+      useEffect(() => {
+        if (!isPlaying || currentStep >= maxSteps) {
+          if (currentStep >= maxSteps) setIsPlaying(false);
+          return;
+        }
+        const timer = setTimeout(() => setCurrentStep(prev => prev + 1), speed);
+        return () => clearTimeout(timer);
+      }, [isPlaying, currentStep, speed, maxSteps]);
+
+      const handleSelectGame = async (game) => {
+        setView('loading');
+        const details = await fetchGameDetails(game.gamePk);
+        if (details) {
+          const parsed = parseGameData(details.linescore, details.plays);
+          if (parsed && parsed.halfInnings.length > 0) {
+            setGameData(parsed);
+            setView('warning');
+            return;
+          }
+        }
+        setGameData(STATIC_GAME_DATA);
+        setUseStatic(true);
+        setView('warning');
+      };
+
+      const handleUseStaticData = () => {
+        setGameData(STATIC_GAME_DATA);
+        setUseStatic(true);
+        setView('warning');
+      };
+
+      const handleStartReplay = () => {
+        setCurrentStep(0);
+        setIsPlaying(false);
+        setView('replay');
+      };
+
+      const handleBack = () => {
+        setView('search');
+        setGameData(null);
+        setCurrentStep(0);
+        setIsPlaying(false);
+        setUseStatic(false);
+      };
+
+      const handlePlayPause = () => {
+        if (currentStep >= maxSteps) setCurrentStep(0);
+        setIsPlaying(!isPlaying);
+      };
+
+      const handleReset = () => {
+        setIsPlaying(false);
+        setCurrentStep(0);
+      };
+
+      const handleModeChange = (newMode) => {
+        if (newMode === mode) return;
+
+        setIsPlaying(false);
+
+        // Map current position to the new mode
+        if (currentStep === 0) {
+          setMode(newMode);
+          return;
+        }
+
+        // Get current position info based on current mode
+        let currentInning, currentIsTop;
+        if (mode === 'inning') {
+          const hi = gameData.halfInnings[currentStep - 1];
+          currentInning = hi?.inning;
+          currentIsTop = hi?.isTop;
+        } else if (mode === 'play') {
+          const play = getFilteredPlays()[currentStep - 1];
+          currentInning = play?.inning;
+          currentIsTop = play?.isTop;
+        } else if (mode === 'pitch') {
+          const pitch = gameData.pitches?.[currentStep - 1];
+          currentInning = pitch?.inning;
+          currentIsTop = pitch?.isTop;
+        }
+
+        // Map to new mode
+        if (newMode === 'inning') {
+          const halfInningIndex = gameData.halfInnings.findIndex(
+            hi => hi.inning === currentInning && hi.isTop === currentIsTop
+          );
+          setCurrentStep(halfInningIndex !== -1 ? halfInningIndex + 1 : 0);
+        } else if (newMode === 'play') {
+          const targetPlays = getFilteredPlays();
+          let playIndex = 0;
+          for (let i = 0; i < targetPlays.length; i++) {
+            if (targetPlays[i].inning < currentInning ||
+                (targetPlays[i].inning === currentInning &&
+                 (currentIsTop ? targetPlays[i].isTop : true))) {
+              playIndex = i + 1;
+            }
+          }
+          setCurrentStep(playIndex);
+        } else if (newMode === 'pitch') {
+          // Find first pitch in or before current position
+          if (gameData.pitches) {
+            let pitchIndex = 0;
+            for (let i = 0; i < gameData.pitches.length; i++) {
+              const p = gameData.pitches[i];
+              if (p.inning < currentInning ||
+                  (p.inning === currentInning && (currentIsTop ? p.isTop : true))) {
+                pitchIndex = i + 1;
+              }
+            }
+            setCurrentStep(Math.min(pitchIndex, gameData.pitches.length));
+          }
+        }
+
+        setMode(newMode);
+      };
+
+      // Build innings grid data for display
+      // Only show 9 innings initially, then reveal extras only when we've revealed data from them
+      const getInningsGrid = () => {
+        if (!gameData) return [];
+
+        // Find the highest inning that has been revealed so far
+        let highestRevealedInning = 0;
+        for (let i = 0; i < currentStep; i++) {
+          const hi = gameData.halfInnings[i];
+          if (hi && hi.inning > highestRevealedInning) {
+            highestRevealedInning = hi.inning;
+          }
+        }
+
+        // Show at least 9 innings, but only show extras once we've revealed them
+        // This prevents spoiling that the game goes to extras before it happens
+        const baseInnings = 9;
+        const inningsToShow = Math.max(baseInnings, highestRevealedInning);
+
+        const grid = [];
+        for (let i = 1; i <= inningsToShow; i++) {
+          const topHalf = gameData.halfInnings.find(hi => hi.inning === i && hi.isTop);
+          const bottomHalf = gameData.halfInnings.find(hi => hi.inning === i && !hi.isTop);
+
+          // Determine which half-innings are revealed based on currentStep
+          const topIndex = gameData.halfInnings.findIndex(hi => hi.inning === i && hi.isTop);
+          const bottomIndex = gameData.halfInnings.findIndex(hi => hi.inning === i && !hi.isTop);
+
+          grid.push({
+            inning: i,
+            topRuns: topHalf?.runs || 0,
+            bottomRuns: bottomHalf?.runs || 0,
+            topRevealed: topIndex !== -1 && topIndex < currentStep,
+            bottomRevealed: bottomIndex !== -1 && bottomIndex < currentStep,
+            isCurrentTop: topIndex === currentStep - 1,
+            isCurrentBottom: bottomIndex === currentStep - 1
+          });
+        }
+
+        return grid;
+      };
+
+      // Search View
+      if (view === 'search') {
+        return (
+          <div className="min-h-screen bg-gray-950 p-4 md:p-8">
+            <div className="max-w-2xl mx-auto">
+              <div className="text-center mb-8">
+                <div className="text-7xl mb-4">⚾</div>
+                <h1 className="text-4xl font-bold text-white mb-2">Game Replay</h1>
+                <p className="text-gray-400 text-lg">Experience the game without spoilers</p>
+              </div>
+
+              <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 mb-6">
+                <label className="block text-gray-400 text-sm mb-2">Select Date</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white text-lg focus:outline-none focus:border-amber-600 transition-colors"
+                />
+              </div>
+
+              <div className="space-y-3">
+                {isLoadingGames ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin w-10 h-10 border-3 border-amber-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-gray-400">Loading games from MLB...</p>
+                  </div>
+                ) : games.length > 0 ? (
+                  <>
+                    <p className="text-gray-400 text-sm mb-4">{games.filter(g => g.status.abstractGameState === "Final").length} completed game(s) available</p>
+                    {games.map((game) => (
+                      <GameCard key={game.gamePk} game={game} onSelect={handleSelectGame} />
+                    ))}
+                  </>
+                ) : (
+                  <div className="text-center py-12 bg-gray-900/50 rounded-xl border border-gray-800">
+                    <div className="text-4xl mb-4">📅</div>
+                    <p className="text-gray-400 mb-2">No games found for this date</p>
+                    <p className="text-gray-500 text-sm">Try selecting a date during baseball season (April - October)</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-gray-800">
+                <button
+                  onClick={handleUseStaticData}
+                  className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-4 rounded-xl transition-all flex items-center justify-center gap-3"
+                >
+                  <span className="text-2xl">🎮</span>
+                  <span>Try Demo Game (Yankees vs Red Sox - Epic Comeback)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Loading View
+      if (view === 'loading') {
+        return (
+          <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="text-center">
+              <div className="relative w-20 h-20 mx-auto mb-6">
+                <div className="absolute inset-0 border-4 border-amber-600/30 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                <div className="absolute inset-4 flex items-center justify-center text-2xl">⚾</div>
+              </div>
+              <p className="text-gray-400 text-lg">Loading game data...</p>
+            </div>
+          </div>
+        );
+      }
+
+      // Warning View - NO RECORDS SHOWN
+      if (view === 'warning' && gameData) {
+        return (
+          <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-gray-900 rounded-2xl p-8 text-center border border-gray-800 shadow-2xl">
+              <div className="text-7xl mb-4">⚾</div>
+              <h1 className="text-3xl font-bold text-white mb-2">Ready to Replay</h1>
+              <div className="inline-block px-4 py-1 bg-amber-600/20 rounded-full text-amber-400 font-semibold mb-6">
+                🎭 Spoiler-Free Experience
+              </div>
+
+              {useStatic && (
+                <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-3 mb-4 text-blue-400 text-sm">
+                  ℹ️ Using demo game data
+                </div>
+              )}
+
+              <div className="bg-gray-800/50 rounded-xl p-5 mb-6 text-left">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg" style={{ backgroundColor: gameData.awayTeam.color }}>
+                    {gameData.awayTeam.abbreviation.substring(0, 2)}
+                  </div>
+                  <div>
+                    <div className="text-white font-semibold text-lg">{gameData.awayTeam.name}</div>
+                  </div>
+                </div>
+                <div className="text-center text-gray-500 text-lg mb-4">@ (at)</div>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg" style={{ backgroundColor: gameData.homeTeam.color }}>
+                    {gameData.homeTeam.abbreviation.substring(0, 2)}
+                  </div>
+                  <div>
+                    <div className="text-white font-semibold text-lg">{gameData.homeTeam.name}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-gray-400 mb-6">
+                <div className="font-medium text-white">{gameData.date}</div>
+                <div className="text-sm">{gameData.venue}</div>
+              </div>
+
+              <button
+                onClick={handleStartReplay}
+                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 px-8 rounded-xl transition-all transform hover:scale-105 shadow-lg mb-4 text-lg"
+              >
+                ▶ Experience the Game
+              </button>
+
+              <button
+                onClick={handleBack}
+                className="w-full bg-gray-800 hover:bg-gray-700 text-gray-300 py-3 rounded-xl transition-all"
+              >
+                ← Choose Different Game
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Replay View
+      if (view === 'replay' && gameData) {
+        const isGameOver = currentStep >= maxSteps;
+        const winner = scores.home > scores.away ? 'home' : scores.away > scores.home ? 'away' : null;
+        const inningsGrid = getInningsGrid();
+        const filteredPlays = getFilteredPlays();
+
+        return (
+          <div className="min-h-screen bg-gray-950 p-4 md:p-8">
+            <div className="max-w-4xl mx-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <button onClick={handleBack} className="text-gray-400 hover:text-white transition-all flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+                <div className="text-center">
+                  <div className="text-amber-400 font-medium">{gameData.date}</div>
+                  <div className="text-gray-500 text-sm">{gameData.venue}</div>
+                </div>
+                <div className="w-20"></div>
+              </div>
+
+              {/* Scoreboard */}
+              <div className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-gray-800 mb-6">
+                <div className="bg-gradient-to-r from-gray-800 via-gray-850 to-gray-800 p-4 flex items-center justify-between border-b border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">⚾</span>
+                    <h2 className="text-white font-bold tracking-widest">SCOREBOARD</h2>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-900/50">
+                    <div className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-green-500 animate-pulse' : isGameOver ? 'bg-amber-500' : 'bg-gray-500'}`}></div>
+                    <span className={`text-sm font-medium ${isGameOver ? 'text-amber-400' : 'text-gray-400'}`}>
+                      {isGameOver ? '🏆 FINAL' : isPlaying ? 'LIVE' : 'PAUSED'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Big Score */}
+                <div className="p-8 bg-gradient-to-b from-gray-900 to-gray-950">
+                  <div className="flex items-center justify-center gap-8 md:gap-16">
+                    <div className={`text-center transition-all ${isGameOver && winner === 'away' ? 'winning-glow rounded-xl p-4' : ''}`}>
+                      <div className="text-3xl font-bold mb-3" style={{ color: gameData.awayTeam.color }}>{gameData.awayTeam.abbreviation}</div>
+                      <ScoreDisplay score={scores.away} />
+                      {isGameOver && winner === 'away' && <div className="mt-3 text-green-400 text-sm font-bold">🏆 WINNER</div>}
+                    </div>
+                    <div className="text-center">
+                      <div className="text-gray-600 text-5xl font-light">—</div>
+                      {currentStep > 0 && !isGameOver && currentHalfInning && (
+                        <div className="text-amber-400 text-sm mt-3 bg-amber-900/30 px-3 py-1 rounded-full">
+                          {currentHalfInning.isTop ? '▲' : '▼'} {currentHalfInning.inning}{getOrdinalSuffix(currentHalfInning.inning)}
+                        </div>
+                      )}
+                    </div>
+                    <div className={`text-center transition-all ${isGameOver && winner === 'home' ? 'winning-glow rounded-xl p-4' : ''}`}>
+                      <div className="text-3xl font-bold mb-3" style={{ color: gameData.homeTeam.color }}>{gameData.homeTeam.abbreviation}</div>
+                      <ScoreDisplay score={scores.home} />
+                      {isGameOver && winner === 'home' && <div className="mt-3 text-green-400 text-sm font-bold">🏆 WINNER</div>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inning Grid - Half-innings */}
+                {mode === 'inning' && (
+                  <div className="border-t border-gray-700 overflow-x-auto">
+                    <div className="flex bg-gray-800 min-w-max">
+                      {/* Team names column */}
+                      <div className="w-16 flex flex-col border-r border-gray-700">
+                        <div className="h-6 flex items-center justify-center text-gray-500 text-xs font-medium border-b border-gray-700 bg-gray-850">
+                          {/* Empty header cell */}
+                        </div>
+                        <div className="h-6 flex items-center justify-center text-xs font-bold border-b border-gray-800" style={{ color: gameData.awayTeam.color }}>
+                          {gameData.awayTeam.abbreviation}
+                        </div>
+                        <div className="h-6 flex items-center justify-center text-xs font-bold" style={{ color: gameData.homeTeam.color }}>
+                          {gameData.homeTeam.abbreviation}
+                        </div>
+                      </div>
+                      {/* Innings columns */}
+                      <div className="flex">
+                        {inningsGrid.map((ig, i) => (
+                          <div key={i} className="flex flex-col border-r border-gray-700">
+                            <div className="w-9 h-6 flex items-center justify-center text-xs text-gray-400 font-medium border-b border-gray-700 bg-gray-850">
+                              {ig.inning}
+                            </div>
+                            <div className={`w-9 h-6 flex items-center justify-center font-mono text-sm border-b border-gray-800 ${ig.isCurrentTop ? 'bg-amber-900/40' : ''}`}>
+                              {ig.topRevealed ? (
+                                <span className={ig.topRuns > 0 ? 'text-amber-400 font-bold' : 'text-gray-500'}>{ig.topRuns}</span>
+                              ) : (
+                                <span className="text-gray-700">—</span>
+                              )}
+                            </div>
+                            <div className={`w-9 h-6 flex items-center justify-center font-mono text-sm ${ig.isCurrentBottom ? 'bg-amber-900/40' : ''}`}>
+                              {ig.bottomRevealed ? (
+                                <span className={ig.bottomRuns > 0 ? 'text-amber-400 font-bold' : 'text-gray-500'}>{ig.bottomRuns}</span>
+                              ) : (
+                                <span className="text-gray-700">—</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Runs total column */}
+                      <div className="flex flex-col border-l-2 border-amber-600 bg-gray-800/80">
+                        <div className="h-6 w-10 flex items-center justify-center text-amber-400 text-xs font-bold border-b border-gray-700">R</div>
+                        <div className="h-6 w-10 flex items-center justify-center border-b border-gray-800">
+                          <span className="font-mono text-amber-400 font-bold text-sm">{scores.away}</span>
+                        </div>
+                        <div className="h-6 w-10 flex items-center justify-center">
+                          <span className="font-mono text-amber-400 font-bold text-sm">{scores.home}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Play-by-Play with Score Bug */}
+              {mode === 'play' && currentStep > 0 && (
+                <div className="bg-gray-900 rounded-2xl p-4 mb-6 border border-gray-800 relative overflow-hidden">
+                  {/* Fireworks overlay */}
+                  <Fireworks active={celebrating} duration={2500} />
+
+                  {/* Score Bug */}
+                  {(() => {
+                    const currentPlay = filteredPlays[currentStep - 1];
+                    if (!currentPlay) return null;
+                    const isHR = isHomeRun(currentPlay.event);
+                    return (
+                      <>
+                        {/* Home Run Banner */}
+                        {celebrating && isHR && (
+                          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 animate-bounce">
+                            <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-black text-xl px-6 py-2 rounded-full shadow-lg shadow-amber-500/50">
+                              ⚾ HOME RUN! 🎉
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex justify-center mb-4 relative z-10">
+                          <DiamondScoreBug
+                            bases={currentPlay.bases || {}}
+                            outs={currentPlay.outs || 0}
+                            inning={currentPlay.inning}
+                            isTop={currentPlay.isTop}
+                            awayTeam={gameData.awayTeam}
+                            homeTeam={gameData.homeTeam}
+                            awayScore={currentPlay.awayScore}
+                            homeScore={currentPlay.homeScore}
+                            showCount={false}
+                            celebrating={celebrating}
+                            scoringTeam={scoringTeam}
+                          />
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-gray-400 text-sm font-medium flex items-center gap-2">
+                      <span>📋</span> {scoringPlaysOnly ? 'SCORING PLAYS' : 'ALL PLAYS'}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setIsPlaying(false);
+                        const currentPlays = getFilteredPlays();
+                        const lastPlay = currentPlays[currentStep - 1];
+
+                        // Toggle the filter
+                        const newScoringOnly = !scoringPlaysOnly;
+                        setScoringPlaysOnly(newScoringOnly);
+
+                        // Map position to new filter
+                        if (lastPlay && currentStep > 0) {
+                          const newPlays = newScoringOnly
+                            ? gameData.plays.filter(p => p.isScoring)
+                            : gameData.plays;
+
+                          // Find equivalent position in new play list
+                          let newStep = 0;
+                          for (let i = 0; i < newPlays.length; i++) {
+                            const p = newPlays[i];
+                            if (p.inning < lastPlay.inning ||
+                                (p.inning === lastPlay.inning && p.isTop === lastPlay.isTop &&
+                                 newPlays.indexOf(p) <= gameData.plays.indexOf(lastPlay))) {
+                              newStep = i + 1;
+                            }
+                            if (p.inning === lastPlay.inning && p.isTop === lastPlay.isTop &&
+                                gameData.plays.indexOf(p) >= gameData.plays.indexOf(lastPlay)) {
+                              newStep = i + 1;
+                              break;
+                            }
+                          }
+                          setCurrentStep(Math.min(newStep, newPlays.length));
+                        }
+                      }}
+                      className={`text-xs px-3 py-1 rounded-full transition-all ${
+                        scoringPlaysOnly
+                          ? 'bg-green-900/50 text-green-400 border border-green-700'
+                          : 'bg-gray-700 text-gray-400 border border-gray-600'
+                      }`}
+                    >
+                      {scoringPlaysOnly ? '✓ Scoring Only' : 'Show All'}
+                    </button>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto">
+                    {filteredPlays.slice(0, currentStep).reverse().map((play, i) => (
+                      <PlayCard
+                        key={i}
+                        play={play}
+                        homeTeam={gameData.homeTeam}
+                        awayTeam={gameData.awayTeam}
+                        isNew={i === 0 && isPlaying}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mode Toggle */}
+              <div className="flex justify-center gap-2 mb-4 flex-wrap">
+                <button onClick={() => handleModeChange('inning')} className={`px-5 py-2.5 rounded-xl font-medium transition-all ${mode === 'inning' ? 'bg-amber-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                  📊 Half-Inning
+                </button>
+                <button onClick={() => handleModeChange('play')} className={`px-5 py-2.5 rounded-xl font-medium transition-all ${mode === 'play' ? 'bg-amber-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                  ⚡ Play-by-Play
+                </button>
+                {gameData.pitches && gameData.pitches.length > 0 && (
+                  <button onClick={() => handleModeChange('pitch')} className={`px-5 py-2.5 rounded-xl font-medium transition-all ${mode === 'pitch' ? 'bg-amber-600 text-white shadow-lg' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>
+                    🎯 Pitch-by-Pitch
+                  </button>
+                )}
+              </div>
+
+              {/* Pitch-by-Pitch View */}
+              {mode === 'pitch' && gameData.pitches && currentStep > 0 && (
+                <div className="bg-gray-900 rounded-2xl p-4 mb-6 border border-gray-800 relative overflow-hidden">
+                  {/* Fireworks overlay */}
+                  <Fireworks active={celebrating} duration={2500} />
+
+                  {(() => {
+                    const currentPitch = gameData.pitches[currentStep - 1];
+                    if (!currentPitch) return null;
+                    const isHR = isHomeRun(currentPitch.finalResult) || isHomeRun(currentPitch.result);
+
+                    return (
+                      <>
+                        {/* Home Run Banner */}
+                        {celebrating && isHR && (
+                          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 animate-bounce">
+                            <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-black text-xl px-6 py-2 rounded-full shadow-lg shadow-amber-500/50">
+                              ⚾ HOME RUN! 🎉
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Score Bug with Count */}
+                        <div className="flex justify-center mb-4 relative z-10">
+                          <DiamondScoreBug
+                            bases={currentPitch.bases || {}}
+                            outs={currentPitch.outs || 0}
+                            inning={currentPitch.inning}
+                            isTop={currentPitch.isTop}
+                            awayTeam={gameData.awayTeam}
+                            homeTeam={gameData.homeTeam}
+                            awayScore={currentPitch.awayScore}
+                            homeScore={currentPitch.homeScore}
+                            balls={currentPitch.balls}
+                            strikes={currentPitch.strikes}
+                            showCount={true}
+                            celebrating={celebrating}
+                            scoringTeam={scoringTeam}
+                          />
+                        </div>
+
+                        {/* Current At-Bat Info */}
+                        <div className="text-center mb-4">
+                          <div className="text-gray-400 text-sm">Now Batting</div>
+                          <div className="text-white text-xl font-bold">{currentPitch.batter}</div>
+                        </div>
+
+                        {/* Pitch Info */}
+                        <div className={`p-4 rounded-xl border-2 transition-all ${(currentPitch.isFinal || currentPitch.isResult) ? 'border-amber-500 bg-amber-900/20' : 'border-gray-700 bg-gray-800/50'}`}>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-gray-400">Pitch #{currentPitch.pitchNum}</span>
+                            <span className="text-amber-400 font-mono font-bold">{currentPitch.balls}-{currentPitch.strikes}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1">
+                              <div className="text-white font-semibold text-lg">{currentPitch.type}</div>
+                              {currentPitch.speed && <div className="text-gray-400">{currentPitch.speed} mph</div>}
+                            </div>
+                            <div className={`text-right font-bold ${(currentPitch.isFinal || currentPitch.isResult) ? 'text-amber-400 text-lg' : currentPitch.result?.includes('Strike') ? 'text-yellow-400' : currentPitch.result?.includes('Ball') ? 'text-green-400' : 'text-gray-300'}`}>
+                              {currentPitch.result}
+                            </div>
+                          </div>
+                          {/* Show at-bat result for final pitch */}
+                          {currentPitch.isFinal && currentPitch.finalResult && (
+                            <div className="mt-3 pt-3 border-t border-amber-700/50 text-center">
+                              <span className="text-amber-400 font-bold text-lg">⚾ {currentPitch.finalResult}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pitch sequence for this at-bat */}
+                        <div className="mt-4">
+                          <div className="text-gray-500 text-xs mb-2">Pitch Sequence</div>
+                          <div className="flex gap-1 flex-wrap">
+                            {gameData.pitches
+                              .filter(p => p.playIndex === currentPitch.playIndex)
+                              .map((p, i) => (
+                                <div
+                                  key={i}
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                    i < currentPitch.pitchNum
+                                      ? p.result?.includes('Strike') || p.result?.includes('Foul')
+                                        ? 'bg-yellow-600 text-white'
+                                        : p.result?.includes('Ball')
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-amber-500 text-white'
+                                      : 'bg-gray-700 text-gray-500'
+                                  } ${i === currentPitch.pitchNum - 1 ? 'ring-2 ring-white' : ''}`}
+                                >
+                                  {i + 1}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Pitch mode info when no pitches revealed */}
+              {mode === 'pitch' && currentStep === 0 && (
+                <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800 text-center">
+                  <div className="text-4xl mb-3">🎯</div>
+                  <h3 className="text-white font-bold mb-2">Pitch-by-Pitch Mode</h3>
+                  <p className="text-gray-400 text-sm">Experience key at-bats pitch by pitch.</p>
+                  <p className="text-gray-500 text-xs mt-2">Press play to see dramatic moments unfold!</p>
+                </div>
+              )}
+
+              {/* Scoring plays filter toggle in play mode */}
+              {mode === 'play' && (
+                <div className="flex justify-center mb-4">
+                  <button
+                    onClick={() => {
+                        setIsPlaying(false);
+                        const currentPlays = getFilteredPlays();
+                        const lastPlay = currentPlays[currentStep - 1];
+
+                        // Toggle the filter
+                        const newScoringOnly = !scoringPlaysOnly;
+                        setScoringPlaysOnly(newScoringOnly);
+
+                        // Map position to new filter
+                        if (lastPlay && currentStep > 0) {
+                          const newPlays = newScoringOnly
+                            ? gameData.plays.filter(p => p.isScoring)
+                            : gameData.plays;
+
+                          // Find equivalent position in new play list
+                          let newStep = 0;
+                          for (let i = 0; i < newPlays.length; i++) {
+                            const p = newPlays[i];
+                            if (p.inning < lastPlay.inning ||
+                                (p.inning === lastPlay.inning && p.isTop === lastPlay.isTop &&
+                                 newPlays.indexOf(p) <= gameData.plays.indexOf(lastPlay))) {
+                              newStep = i + 1;
+                            }
+                            if (p.inning === lastPlay.inning && p.isTop === lastPlay.isTop &&
+                                gameData.plays.indexOf(p) >= gameData.plays.indexOf(lastPlay)) {
+                              newStep = i + 1;
+                              break;
+                            }
+                          }
+                          setCurrentStep(Math.min(newStep, newPlays.length));
+                        }
+                      }}
+                    className={`text-sm px-4 py-2 rounded-lg transition-all ${
+                      scoringPlaysOnly
+                        ? 'bg-green-900/50 text-green-400 border border-green-700'
+                        : 'bg-gray-800 text-gray-400 border border-gray-700'
+                    }`}
+                  >
+                    {scoringPlaysOnly ? '✓ Scoring Plays Only' : 'Showing All Plays'}
+                  </button>
+                </div>
+              )}
+
+              {/* Controls */}
+              <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+                <div className="mb-6">
+                  <div className="text-gray-400 text-sm mb-3 text-center font-medium">⏱ PLAYBACK SPEED</div>
+                  <div className="flex justify-center gap-2 flex-wrap">
+                    <SpeedButton speed={4000} currentSpeed={speed} onClick={setSpeed} label="🐢 Slow" />
+                    <SpeedButton speed={2000} currentSpeed={speed} onClick={setSpeed} label="Normal" />
+                    <SpeedButton speed={800} currentSpeed={speed} onClick={setSpeed} label="🐇 Fast" />
+                    <SpeedButton speed={200} currentSpeed={speed} onClick={setSpeed} label="⚡ Rapid" />
+                  </div>
+                </div>
+
+                <div className="flex justify-center gap-3">
+                  <button onClick={handleReset} className="p-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-all" title="Reset">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  </button>
+                  <button onClick={() => currentStep > 0 && setCurrentStep(prev => prev - 1)} disabled={currentStep === 0} className="p-3 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <button onClick={handlePlayPause} className="p-4 bg-amber-600 hover:bg-amber-500 rounded-xl transition-all shadow-lg transform hover:scale-105">
+                    {isPlaying ? (
+                      <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    ) : (
+                      <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    )}
+                  </button>
+                  <button onClick={() => currentStep < maxSteps && setCurrentStep(prev => prev + 1)} disabled={currentStep >= maxSteps} className="p-3 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                  <button onClick={() => { setIsPlaying(false); setCurrentStep(maxSteps); }} className="p-3 bg-gray-700 hover:bg-gray-600 rounded-xl transition-all" title="Skip to end">
+                    <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                  </button>
+                </div>
+
+              </div>
+
+              <div className="text-center mt-6 text-gray-600 text-sm">
+                ⚾ Game Replay • Experience the drama without spoilers
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    ReactDOM.render(<GameReplayApp />, document.getElementById('root'));
+  </script>
+</body>
+</html>
