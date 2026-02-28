@@ -360,8 +360,6 @@
           if (play.result?.event && play.about?.inning) {
             const isTop = play.about.isTopInning;
             const halfInningKey = `${play.about.inning}-${isTop}`;
-            const isScoring = play.about?.isScoringPlay || false;
-
             // Reset bases at start of each half-inning
             if (halfInningKey !== lastHalfInning) {
               currentBases = { first: false, second: false, third: false };
@@ -374,11 +372,32 @@
               home: currentHomeScore
             };
 
-            // Update score AFTER saving pre-at-bat score
-            if (isScoring) {
-              const runs = play.result.rbi || 1;
-              if (isTop) currentAwayScore += runs;
-              else currentHomeScore += runs;
+            // Count actual runners who scored on this play by checking runner movements.
+            // Don't rely on isScoringPlay - the API can mark it false even when runs score
+            // (e.g. runs scoring on wild pitches/passed balls during a strikeout at-bat).
+            let runsScored = 0;
+            if (play.runners) {
+              const scoredRunnerIds = new Set();
+              play.runners.forEach(runner => {
+                const end = runner.movement?.end;
+                const isOut = runner.movement?.isOut;
+                const runnerId = runner.details?.runner?.id;
+                if (!isOut && (end === 'score' || end === '4B')) {
+                  if (runnerId) {
+                    scoredRunnerIds.add(runnerId);
+                  } else {
+                    runsScored++;
+                  }
+                }
+              });
+              runsScored += scoredRunnerIds.size;
+            }
+            const isScoring = runsScored > 0 || (play.about?.isScoringPlay || false);
+            // Fallback: if API says scoring but we found no runners, use rbi
+            if (isScoring && runsScored === 0) runsScored = play.result.rbi || 1;
+            if (runsScored > 0) {
+              if (isTop) currentAwayScore += runsScored;
+              else currentHomeScore += runsScored;
             }
 
             const batter = play.matchup?.batter?.fullName?.split(' ').pop() || 'Unknown';

@@ -120,15 +120,41 @@ const parseGameData = (gameData, playsData) => {
 
   if (playsData?.allPlays) {
     playsData.allPlays.forEach(play => {
-      if (play.about?.isScoringPlay && play.result?.event) {
+      if (play.result?.event && play.about?.inning) {
         const isTop = play.about.isTopInning;
-        const runs = play.result.rbi || 1;
 
-        if (isTop) {
-          currentAwayScore += runs;
-        } else {
-          currentHomeScore += runs;
+        // Count actual runners who scored by checking runner movements.
+        // Don't rely solely on isScoringPlay - the API can mark it false even when
+        // runs score (e.g. runs scoring on wild pitches/passed balls during a strikeout).
+        let runsScored = 0;
+        if (play.runners) {
+          const scoredRunnerIds = new Set();
+          play.runners.forEach(runner => {
+            const end = runner.movement?.end;
+            const isOut = runner.movement?.isOut;
+            const runnerId = runner.details?.runner?.id;
+            if (!isOut && (end === 'score' || end === '4B')) {
+              if (runnerId) {
+                scoredRunnerIds.add(runnerId);
+              } else {
+                runsScored++;
+              }
+            }
+          });
+          runsScored += scoredRunnerIds.size;
         }
+        const isScoring = runsScored > 0 || (play.about?.isScoringPlay || false);
+        if (isScoring && runsScored === 0) runsScored = play.result.rbi || 1;
+
+        if (runsScored > 0) {
+          if (isTop) {
+            currentAwayScore += runsScored;
+          } else {
+            currentHomeScore += runsScored;
+          }
+        }
+
+        if (!isScoring) return;
 
         const batter = play.matchup?.batter?.fullName || 'Unknown';
         const eventType = play.result.event;
