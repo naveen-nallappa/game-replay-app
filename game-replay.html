@@ -323,16 +323,16 @@
       const homeTeamId = game.teams.home.id;
       const awayTeamId = game.teams.away.id;
 
-      const homeTeamInfo = MLB_TEAMS[homeTeamId] || {
+      const homeTeamInfo = { id: homeTeamId, ...(MLB_TEAMS[homeTeamId] || {
         name: game.teams.home.name,
         abbreviation: game.teams.home.abbreviation,
         color: "#333333"
-      };
-      const awayTeamInfo = MLB_TEAMS[awayTeamId] || {
+      }) };
+      const awayTeamInfo = { id: awayTeamId, ...(MLB_TEAMS[awayTeamId] || {
         name: game.teams.away.name,
         abbreviation: game.teams.away.abbreviation,
         color: "#666666"
-      };
+      }) };
 
       // Build half-innings array
       const halfInnings = [];
@@ -662,13 +662,19 @@
         >
           <div className="flex items-center gap-4">
             {/* Teams and Score */}
-            <div className="flex flex-col gap-1 min-w-[80px]">
+            <div className="flex flex-col gap-1 min-w-[100px]">
               <div className={`flex items-center justify-between text-sm ${isTop ? 'text-white' : 'text-gray-400'}`}>
-                <span className="font-bold" style={{ color: awayTeam.color }}>{awayTeam.abbreviation}</span>
+                <div className="flex items-center gap-1">
+                  <TeamLogo teamId={awayTeam.id} abbreviation={awayTeam.abbreviation} color={awayTeam.color} size="xs" />
+                  <span className="font-bold text-xs" style={{ color: awayTeam.color }}>{awayTeam.abbreviation}</span>
+                </div>
                 <span className={`font-mono font-bold ml-3 ${celebrating && scoringTeam === 'away' ? 'score-celebrate' : ''}`}>{awayScore}</span>
               </div>
               <div className={`flex items-center justify-between text-sm ${!isTop ? 'text-white' : 'text-gray-400'}`}>
-                <span className="font-bold" style={{ color: homeTeam.color }}>{homeTeam.abbreviation}</span>
+                <div className="flex items-center gap-1">
+                  <TeamLogo teamId={homeTeam.id} abbreviation={homeTeam.abbreviation} color={homeTeam.color} size="xs" />
+                  <span className="font-bold text-xs" style={{ color: homeTeam.color }}>{homeTeam.abbreviation}</span>
+                </div>
                 <span className={`font-mono font-bold ml-3 ${celebrating && scoringTeam === 'home' ? 'score-celebrate' : ''}`}>{homeScore}</span>
               </div>
             </div>
@@ -855,6 +861,32 @@
       return s[(v - 20) % 10] || s[v] || s[0];
     }
 
+    // Team Logo component - uses MLB static CDN
+    const TeamLogo = ({ teamId, abbreviation, color, size = 'md' }) => {
+      const sizeMap = { xs: 'w-5 h-5', sm: 'w-8 h-8', md: 'w-12 h-12', lg: 'w-16 h-16' };
+      const textMap = { xs: 'text-[8px]', sm: 'text-xs', md: 'text-sm', lg: 'text-lg' };
+      const sizeClasses = sizeMap[size] || sizeMap.md;
+      const textSize = textMap[size] || textMap.md;
+      const [imgError, setImgError] = React.useState(false);
+
+      if (teamId && !imgError) {
+        return (
+          <img
+            src={`https://www.mlbstatic.com/team-logos/${teamId}.svg`}
+            alt={abbreviation}
+            className={`${sizeClasses} object-contain`}
+            onError={() => setImgError(true)}
+          />
+        );
+      }
+      // Fallback to colored circle with abbreviation
+      return (
+        <div className={`${sizeClasses} rounded-full flex items-center justify-center text-white font-bold ${textSize}`} style={{ backgroundColor: color }}>
+          {abbreviation}
+        </div>
+      );
+    };
+
     const SpeedButton = ({ speed, currentSpeed, onClick, label }) => (
       <button
         onClick={() => onClick(speed)}
@@ -865,8 +897,10 @@
     );
 
     const GameCard = ({ game, onSelect }) => {
-      const homeTeam = MLB_TEAMS[game.teams.home.team.id] || { abbreviation: game.teams.home.team.abbreviation, color: "#333" };
-      const awayTeam = MLB_TEAMS[game.teams.away.team.id] || { abbreviation: game.teams.away.team.abbreviation, color: "#666" };
+      const homeTeamId = game.teams.home.team.id;
+      const awayTeamId = game.teams.away.team.id;
+      const homeTeam = MLB_TEAMS[homeTeamId] || { abbreviation: game.teams.home.team.abbreviation, color: "#333" };
+      const awayTeam = MLB_TEAMS[awayTeamId] || { abbreviation: game.teams.away.team.abbreviation, color: "#666" };
       const isFinal = game.status.abstractGameState === "Final";
 
       return (
@@ -877,13 +911,9 @@
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: awayTeam.color }}>
-                {awayTeam.abbreviation?.substring(0, 2) || 'AW'}
-              </div>
+              <TeamLogo teamId={awayTeamId} abbreviation={awayTeam.abbreviation} color={awayTeam.color} />
               <span className="text-gray-500 text-xl">@</span>
-              <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: homeTeam.color }}>
-                {homeTeam.abbreviation?.substring(0, 2) || 'HM'}
-              </div>
+              <TeamLogo teamId={homeTeamId} abbreviation={homeTeam.abbreviation} color={homeTeam.color} />
             </div>
             <div className="text-right">
               <div className="text-white font-semibold text-lg">
@@ -900,11 +930,9 @@
 
     // Main App
     function GameReplayApp() {
-      const [view, setView] = useState('loading'); // Start with loading to fetch random game
+      const [view, setView] = useState('search'); // Start with today's games
       const [selectedDate, setSelectedDate] = useState(() => {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return yesterday.toISOString().split('T')[0];
+        return new Date().toISOString().split('T')[0];
       });
       const [games, setGames] = useState([]);
       const [isLoadingGames, setIsLoadingGames] = useState(false);
@@ -920,32 +948,7 @@
       const prevStepRef = useRef(0);
       const hasLoadedRandomGame = useRef(false);
 
-      // Auto-load a random exciting game on mount
-      useEffect(() => {
-        if (hasLoadedRandomGame.current) return;
-        hasLoadedRandomGame.current = true;
-
-        const loadRandomGame = async () => {
-          setLoadingMessage('Finding an exciting game...');
-          const gameResult = await fetchRandomExcitingGame();
-
-          if (gameResult) {
-            setLoadingMessage('Parsing play-by-play data...');
-            const parsed = parseGameData(gameResult.linescore, gameResult.plays);
-            if (parsed && parsed.halfInnings.length > 0) {
-              setGameData(parsed);
-              setView('warning');
-              return;
-            }
-          }
-
-          // Fallback to search view if no game could be loaded
-          setLoadingMessage('Could not load game, showing search...');
-          setTimeout(() => setView('search'), 1000);
-        };
-
-        loadRandomGame();
-      }, []);
+      // (Random game auto-load removed — app now starts with today's games)
 
       // Check if current event is a home run (big event)
       const isHomeRun = (eventText) => {
@@ -1329,18 +1332,14 @@
 
               <div className="bg-gray-800/50 rounded-xl p-5 mb-6 text-left">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg" style={{ backgroundColor: gameData.awayTeam.color }}>
-                    {gameData.awayTeam.abbreviation.substring(0, 2)}
-                  </div>
+                  <TeamLogo teamId={gameData.awayTeam.id} abbreviation={gameData.awayTeam.abbreviation} color={gameData.awayTeam.color} size="lg" />
                   <div>
                     <div className="text-white font-semibold text-lg">{gameData.awayTeam.name}</div>
                   </div>
                 </div>
                 <div className="text-center text-gray-500 text-lg mb-4">@ (at)</div>
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg" style={{ backgroundColor: gameData.homeTeam.color }}>
-                    {gameData.homeTeam.abbreviation.substring(0, 2)}
-                  </div>
+                  <TeamLogo teamId={gameData.homeTeam.id} abbreviation={gameData.homeTeam.abbreviation} color={gameData.homeTeam.color} size="lg" />
                   <div>
                     <div className="text-white font-semibold text-lg">{gameData.homeTeam.name}</div>
                   </div>
@@ -1449,8 +1448,9 @@
                 {/* Big Score */}
                 <div className="p-3 sm:p-8 bg-gradient-to-b from-gray-900 to-gray-950">
                   <div className="flex items-center justify-center gap-4 sm:gap-8 md:gap-16">
-                    <div className={`text-center transition-all ${isGameOver && winner === 'away' ? 'winning-glow rounded-xl p-2 sm:p-4' : ''}`}>
-                      <div className="text-xl sm:text-3xl font-bold mb-1 sm:mb-3" style={{ color: gameData.awayTeam.color }}>{gameData.awayTeam.abbreviation}</div>
+                    <div className={`text-center transition-all flex flex-col items-center ${isGameOver && winner === 'away' ? 'winning-glow rounded-xl p-2 sm:p-4' : ''}`}>
+                      <TeamLogo teamId={gameData.awayTeam.id} abbreviation={gameData.awayTeam.abbreviation} color={gameData.awayTeam.color} size="lg" />
+                      <div className="text-sm sm:text-lg font-bold mt-1" style={{ color: gameData.awayTeam.color }}>{gameData.awayTeam.abbreviation}</div>
                       <ScoreDisplay score={scores.away} />
                       {isGameOver && winner === 'away' && <div className="mt-3 text-green-400 text-sm font-bold">🏆 WINNER</div>}
                     </div>
@@ -1462,8 +1462,9 @@
                         </div>
                       )}
                     </div>
-                    <div className={`text-center transition-all ${isGameOver && winner === 'home' ? 'winning-glow rounded-xl p-2 sm:p-4' : ''}`}>
-                      <div className="text-xl sm:text-3xl font-bold mb-1 sm:mb-3" style={{ color: gameData.homeTeam.color }}>{gameData.homeTeam.abbreviation}</div>
+                    <div className={`text-center transition-all flex flex-col items-center ${isGameOver && winner === 'home' ? 'winning-glow rounded-xl p-2 sm:p-4' : ''}`}>
+                      <TeamLogo teamId={gameData.homeTeam.id} abbreviation={gameData.homeTeam.abbreviation} color={gameData.homeTeam.color} size="lg" />
+                      <div className="text-sm sm:text-lg font-bold mt-1" style={{ color: gameData.homeTeam.color }}>{gameData.homeTeam.abbreviation}</div>
                       <ScoreDisplay score={scores.home} />
                       {isGameOver && winner === 'home' && <div className="mt-3 text-green-400 text-sm font-bold">🏆 WINNER</div>}
                     </div>
