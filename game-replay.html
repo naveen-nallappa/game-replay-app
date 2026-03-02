@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚾ Game Replay - Spoiler-Free Experience</title>
+  <title>ReplayBaseball - Watch Any Game, Spoiler-Free</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%23f59e0b'/><circle cx='32' cy='32' r='22' fill='%23111827'/><path d='M20 26 L32 18 L44 26 M20 38 L32 46 L44 38' stroke='%23f59e0b' stroke-width='3' fill='none' stroke-linecap='round'/><circle cx='32' cy='32' r='3' fill='%23f59e0b'/></svg>" type="image/svg+xml">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -966,7 +967,19 @@
 
       const [view, setView] = useState(initialGamePk ? 'loading' : 'search');
       const [selectedDate, setSelectedDate] = useState(() => {
-        return new Date().toISOString().split('T')[0];
+        // Default to yesterday's games until noon ET the next day,
+        // so morning users see last night's completed games
+        const now = new Date();
+        const etOffset = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+        const etNow = new Date(etOffset);
+        const etHour = etNow.getHours();
+        if (etHour < 12) {
+          // Before noon ET — show yesterday
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          return yesterday.toISOString().split('T')[0];
+        }
+        return now.toISOString().split('T')[0];
       });
       const [games, setGames] = useState([]);
       const [isLoadingGames, setIsLoadingGames] = useState(false);
@@ -1315,9 +1328,16 @@
           <div className="min-h-screen bg-gray-950 p-2 sm:p-4 md:p-8">
             <div className="max-w-2xl mx-auto">
               <div className="text-center mb-8">
-                <div className="text-7xl mb-4">⚾</div>
-                <h1 className="text-4xl font-bold text-white mb-2">Game Replay</h1>
-                <p className="text-gray-400 text-lg">Experience the game without spoilers</p>
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <svg width="48" height="48" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="30" fill="#f59e0b"/>
+                    <circle cx="32" cy="32" r="22" fill="#111827"/>
+                    <path d="M20 26 L32 18 L44 26 M20 38 L32 46 L44 38" stroke="#f59e0b" strokeWidth="3" fill="none" strokeLinecap="round"/>
+                    <circle cx="32" cy="32" r="3" fill="#f59e0b"/>
+                  </svg>
+                  <h1 className="text-4xl font-bold text-white">Replay<span className="text-amber-500">Baseball</span></h1>
+                </div>
+                <p className="text-gray-400 text-lg">Watch any game, spoiler-free</p>
               </div>
 
               <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 mb-6">
@@ -1388,10 +1408,18 @@
         return (
           <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
             <div className="max-w-md w-full bg-gray-900 rounded-2xl p-8 text-center border border-gray-800 shadow-2xl">
-              <div className="text-7xl mb-4">⚾</div>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <svg width="40" height="40" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="32" cy="32" r="30" fill="#f59e0b"/>
+                  <circle cx="32" cy="32" r="22" fill="#111827"/>
+                  <path d="M20 26 L32 18 L44 26 M20 38 L32 46 L44 38" stroke="#f59e0b" strokeWidth="3" fill="none" strokeLinecap="round"/>
+                  <circle cx="32" cy="32" r="3" fill="#f59e0b"/>
+                </svg>
+                <span className="text-2xl font-bold text-white">Replay<span className="text-amber-500">Baseball</span></span>
+              </div>
               <h1 className="text-3xl font-bold text-white mb-2">Ready to Replay</h1>
               <div className="inline-block px-4 py-1 bg-amber-600/20 rounded-full text-amber-400 font-semibold mb-6">
-                🎭 Spoiler-Free Experience
+                🎭 Spoiler-Free
               </div>
 
               <div className="bg-gray-800/50 rounded-xl p-5 mb-6 text-left">
@@ -1906,7 +1934,7 @@
               </div>
 
               <div className="text-center mt-3 sm:mt-6 text-gray-600 text-xs sm:text-sm">
-                ⚾ Game Replay • Experience the drama without spoilers
+                Replay<span className="text-gray-500">Baseball</span> • Watch any game, spoiler-free
               </div>
             </div>
           </div>
