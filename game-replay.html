@@ -1358,7 +1358,7 @@
                   </div>
                 ) : games.length > 0 ? (
                   <>
-                    <p className="text-gray-400 text-sm mb-4">{games.filter(g => g.status.abstractGameState === "Final").length} completed game(s) available</p>
+                    <p className="text-gray-400 text-sm mb-4">{(() => { const count = games.filter(g => g.status.abstractGameState === "Final").length; return `${count} completed ${count === 1 ? 'game' : 'games'} available`; })()}</p>
                     {games.map((game) => (
                       <GameCard key={game.gamePk} game={game} onSelect={handleSelectGame} />
                     ))}
