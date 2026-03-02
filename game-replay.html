@@ -947,15 +947,33 @@
 
     // Main App
     function GameReplayApp() {
-      const [view, setView] = useState('search'); // Start with today's games
+      // URL state helpers
+      const getUrlParams = () => new URLSearchParams(window.location.search);
+      const updateUrl = (params) => {
+        const url = new URL(window.location);
+        Object.entries(params).forEach(([k, v]) => {
+          if (v != null) url.searchParams.set(k, v);
+          else url.searchParams.delete(k);
+        });
+        history.replaceState(null, '', url);
+      };
+      const clearUrl = () => history.replaceState(null, '', window.location.pathname);
+
+      // Check URL for deep-link params on init
+      const urlParams = getUrlParams();
+      const initialGamePk = urlParams.get('gamePk');
+      const initialMode = ['inning', 'play', 'pitch'].includes(urlParams.get('mode')) ? urlParams.get('mode') : 'inning';
+
+      const [view, setView] = useState(initialGamePk ? 'loading' : 'search');
       const [selectedDate, setSelectedDate] = useState(() => {
         return new Date().toISOString().split('T')[0];
       });
       const [games, setGames] = useState([]);
       const [isLoadingGames, setIsLoadingGames] = useState(false);
       const [gameData, setGameData] = useState(null);
+      const [currentGamePk, setCurrentGamePk] = useState(initialGamePk);
       const [loadingMessage, setLoadingMessage] = useState('Loading an exciting game...');
-      const [mode, setMode] = useState('inning'); // 'inning', 'play', or 'pitch'
+      const [mode, setMode] = useState(initialMode); // 'inning', 'play', or 'pitch'
       const [isPlaying, setIsPlaying] = useState(false);
       const [speed, setSpeed] = useState(2000);
       const [currentStep, setCurrentStep] = useState(0);
@@ -965,7 +983,26 @@
       const prevStepRef = useRef(0);
       const hasLoadedRandomGame = useRef(false);
 
-      // (Random game auto-load removed — app now starts with today's games)
+      // Deep-link: auto-load game from URL gamePk param
+      useEffect(() => {
+        if (!initialGamePk) return;
+        const loadFromUrl = async () => {
+          setLoadingMessage('Loading game data...');
+          const details = await fetchGameDetails(initialGamePk);
+          if (details) {
+            const parsed = parseGameData(details.linescore, details.plays);
+            if (parsed && parsed.halfInnings.length > 0) {
+              setGameData(parsed);
+              setView('warning');
+              return;
+            }
+          }
+          // Game not found, fall back to search
+          clearUrl();
+          setView('search');
+        };
+        loadFromUrl();
+      }, []);
 
       // Check if current event is a home run (big event)
       const isHomeRun = (eventText) => {
@@ -1095,6 +1132,8 @@
       const handleSelectGame = async (game) => {
         setView('loading');
         setLoadingMessage('Loading game data...');
+        setCurrentGamePk(game.gamePk);
+        updateUrl({ gamePk: game.gamePk, mode: null });
         const details = await fetchGameDetails(game.gamePk);
         if (details) {
           const parsed = parseGameData(details.linescore, details.plays);
@@ -1116,6 +1155,7 @@
           }
         }
         // If all else fails, go back to search
+        clearUrl();
         setView('search');
       };
 
@@ -1127,11 +1167,14 @@
           const parsed = parseGameData(gameResult.linescore, gameResult.plays);
           if (parsed && parsed.halfInnings.length > 0) {
             setGameData(parsed);
+            setCurrentGamePk(gameResult.gamePk);
+            updateUrl({ gamePk: gameResult.gamePk });
             setView('warning');
             return;
           }
         }
         // Fallback to search if nothing works
+        clearUrl();
         setView('search');
       };
 
@@ -1139,9 +1182,12 @@
         setCurrentStep(0);
         setIsPlaying(false);
         setView('replay');
+        if (currentGamePk) updateUrl({ gamePk: currentGamePk, mode: mode });
       };
 
       const handleBack = () => {
+        clearUrl();
+        setCurrentGamePk(null);
         setView('search');
         setGameData(null);
         setCurrentStep(0);
@@ -1162,6 +1208,7 @@
         if (newMode === mode) return;
 
         setIsPlaying(false);
+        if (currentGamePk) updateUrl({ gamePk: currentGamePk, mode: newMode });
 
         // Map current position to the new mode
         if (currentStep === 0) {
