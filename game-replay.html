@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ReplayBaseball - Watch Any Game, Spoiler-Free</title>
+  <title>ReplayBaseball - Replay Any Game, Spoiler-Free</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%23f59e0b'/><circle cx='32' cy='32' r='22' fill='%23111827'/><path d='M20 26 L32 18 L44 26 M20 38 L32 46 L44 38' stroke='%23f59e0b' stroke-width='3' fill='none' stroke-linecap='round'/><circle cx='32' cy='32' r='3' fill='%23f59e0b'/></svg>" type="image/svg+xml">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -22,6 +22,17 @@
       100% { transform: rotateX(0deg); }
     }
     .flip-animate { animation: flip-down 0.3s ease-in-out; }
+
+    @keyframes fadeInOut {
+      0% { opacity: 0; }
+      15% { opacity: 1; }
+      75% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes slideUp {
+      0% { transform: translateY(20px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
 
     .scoreboard-digit {
       background: linear-gradient(180deg, #1f1f1f 0%, #0a0a0a 50%, #1a1a1a 50%, #0f0f0f 100%);
@@ -993,7 +1004,9 @@
       const [scoringPlaysOnly, setScoringPlaysOnly] = useState(false);
       const [celebrating, setCelebrating] = useState(false);
       const [scoringTeam, setScoringTeam] = useState(null);
+      const [inningTransition, setInningTransition] = useState(null);
       const prevStepRef = useRef(0);
+      const prevHalfInningRef = useRef(null);
       const hasLoadedRandomGame = useRef(false);
 
       // Deep-link: auto-load game from URL gamePk param
@@ -1132,6 +1145,24 @@
       };
 
       const currentHalfInning = getCurrentHalfInning();
+
+      // Detect half-inning transitions and show overlay
+      useEffect(() => {
+        if (!gameData || currentStep === 0 || mode !== 'inning') {
+          prevHalfInningRef.current = currentHalfInning ? `${currentHalfInning.inning}-${currentHalfInning.isTop}` : null;
+          return;
+        }
+        const key = currentHalfInning ? `${currentHalfInning.inning}-${currentHalfInning.isTop}` : null;
+        if (key && prevHalfInningRef.current && key !== prevHalfInningRef.current) {
+          const half = currentHalfInning.isTop ? 'Top' : 'Bottom';
+          const ord = currentHalfInning.inning + (currentHalfInning.inning === 1 ? 'st' : currentHalfInning.inning === 2 ? 'nd' : currentHalfInning.inning === 3 ? 'rd' : 'th');
+          setInningTransition(`${currentHalfInning.isTop ? '▲' : '▼'} ${half} ${ord}`);
+          const t = setTimeout(() => setInningTransition(null), 1500);
+          prevHalfInningRef.current = key;
+          return () => clearTimeout(t);
+        }
+        prevHalfInningRef.current = key;
+      }, [currentStep, currentHalfInning, mode, gameData]);
 
       useEffect(() => {
         if (!isPlaying || currentStep >= maxSteps) {
@@ -1337,7 +1368,7 @@
                   </svg>
                   <h1 className="text-4xl font-bold text-white">Replay<span className="text-amber-500">Baseball</span></h1>
                 </div>
-                <p className="text-gray-400 text-lg">Watch any game, spoiler-free</p>
+                <p className="text-gray-400 text-lg">Replay any game, spoiler-free</p>
               </div>
 
               <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 mb-6">
@@ -1358,7 +1389,7 @@
                   </div>
                 ) : games.length > 0 ? (
                   <>
-                    <p className="text-gray-400 text-sm mb-4">{games.filter(g => g.status.abstractGameState === "Final").length} completed game(s) available</p>
+                    <p className="text-gray-400 text-sm mb-4">{(() => { const count = games.filter(g => g.status.abstractGameState === "Final").length; return `${count} completed ${count === 1 ? 'game' : 'games'} available`; })()}</p>
                     {games.map((game) => (
                       <GameCard key={game.gamePk} game={game} onSelect={handleSelectGame} />
                     ))}
@@ -1523,7 +1554,17 @@
 
               {/* Scoreboard - only shown in Half-Inning mode */}
               {mode === 'inning' && (
-              <div className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-gray-800 mb-3 sm:mb-6">
+              <div className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-gray-800 mb-3 sm:mb-6 relative">
+                {/* Half-inning transition overlay */}
+                {inningTransition && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-gray-950/90 backdrop-blur-sm rounded-2xl" style={{ animation: 'fadeInOut 1.5s ease-in-out forwards' }}>
+                    <div className="text-center">
+                      <div className="text-amber-400 text-3xl sm:text-5xl font-black tracking-wider mb-2" style={{ animation: 'slideUp 0.4s ease-out' }}>
+                        {inningTransition}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Status Badge */}
                 <div className="flex items-center justify-center pt-3 sm:pt-4">
                   <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800/80 border border-gray-700">
@@ -1758,14 +1799,30 @@
                           />
                         </div>
 
-                        {/* Current At-Bat Info */}
-                        <div className="text-center mb-2 sm:mb-4">
-                          <div className="text-gray-400 text-xs sm:text-sm">Now Batting</div>
-                          <div className="text-white text-base sm:text-xl font-bold">{currentPitch.batter}</div>
+                        {/* Current Matchup */}
+                        <div className="flex items-center justify-center gap-4 sm:gap-8 mb-2 sm:mb-4">
+                          <div className="text-center">
+                            <div className="text-gray-500 text-xs">Pitching</div>
+                            <div className="text-gray-300 text-sm sm:text-base font-semibold">{currentPitch.pitcher}</div>
+                          </div>
+                          <div className="text-gray-600 text-xs">vs</div>
+                          <div className="text-center">
+                            <div className="text-gray-500 text-xs">Batting</div>
+                            <div className="text-white text-sm sm:text-base font-bold">{currentPitch.batter}</div>
+                          </div>
                         </div>
 
                         {/* Pitch Info */}
-                        <div className={`p-2 sm:p-4 rounded-xl border-2 transition-all ${(currentPitch.isFinal || currentPitch.isResult) ? 'border-amber-500 bg-amber-900/20' : 'border-gray-700 bg-gray-800/50'}`}>
+                        {(() => {
+                          // Determine accent color for final result
+                          const outKeywords = ['Strikeout', 'Groundout', 'Flyout', 'Lineout', 'Pop Out', 'Forceout', 'Double Play', 'Triple Play', 'Fielders Choice Out', 'Grounded Into', 'Sac Fly', 'Sac Bunt', 'Sacrifice'];
+                          const isOut = currentPitch.isFinal && currentPitch.finalResult && outKeywords.some(kw => currentPitch.finalResult.includes(kw));
+                          const isRunScoring = currentPitch.isFinal && currentPitch.finalResult && !isOut;
+                          // Border/bg for final pitch result
+                          const finalBorder = isOut ? 'border-purple-500 bg-purple-900/20' : isRunScoring ? 'border-blue-500 bg-blue-900/20' : 'border-amber-500 bg-amber-900/20';
+                          const finalTextColor = isOut ? 'text-purple-400' : isRunScoring ? 'text-blue-400' : 'text-amber-400';
+                          return (
+                        <div className={`p-2 sm:p-4 rounded-xl border-2 transition-all ${(currentPitch.isFinal || currentPitch.isResult) ? finalBorder : 'border-gray-700 bg-gray-800/50'}`}>
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-gray-400">Pitch #{currentPitch.pitchNum}</span>
                             <span className="text-amber-400 font-mono font-bold">{currentPitch.balls}-{currentPitch.strikes}</span>
@@ -1775,35 +1832,40 @@
                               <div className="text-white font-semibold text-lg">{currentPitch.type}</div>
                               {currentPitch.speed && <div className="text-gray-400">{currentPitch.speed} mph</div>}
                             </div>
-                            <div className={`text-right font-bold ${(currentPitch.isFinal || currentPitch.isResult) ? 'text-amber-400 text-lg' : currentPitch.result?.includes('Strike') ? 'text-yellow-400' : currentPitch.result?.includes('Ball') ? 'text-green-400' : 'text-gray-300'}`}>
+                            <div className={`text-right font-bold ${(currentPitch.isFinal || currentPitch.isResult) ? `${finalTextColor} text-lg` : currentPitch.result?.includes('Strike') || currentPitch.result?.includes('Foul') ? 'text-red-400' : currentPitch.result?.includes('Ball') ? 'text-green-400' : 'text-gray-300'}`}>
                               {currentPitch.result}
                             </div>
                           </div>
                           {/* Show at-bat result for final pitch */}
                           {currentPitch.isFinal && currentPitch.finalResult && (
-                            <div className="mt-3 pt-3 border-t border-amber-700/50 text-center">
-                              <span className="text-amber-400 font-bold text-lg">⚾ {currentPitch.finalResult}</span>
+                            <div className={`mt-3 pt-3 border-t ${isOut ? 'border-purple-700/50' : isRunScoring ? 'border-blue-700/50' : 'border-amber-700/50'} text-center`}>
+                              <span className={`${finalTextColor} font-bold text-lg`}>⚾ {currentPitch.finalResult}</span>
                             </div>
                           )}
                         </div>
+                          );
+                        })()}
 
-                        {/* Pitch sequence for this at-bat */}
+                        {/* Pitch sequence for this at-bat - only show revealed pitches */}
                         <div className="mt-2 sm:mt-4">
                           <div className="text-gray-500 text-xs mb-1 sm:mb-2">Pitch Sequence</div>
                           <div className="flex gap-1 flex-wrap">
                             {gameData.pitches
                               .filter(p => p.playIndex === currentPitch.playIndex)
+                              .slice(0, currentPitch.pitchNum)
                               .map((p, i) => (
                                 <div
                                   key={i}
                                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                                    i < currentPitch.pitchNum
-                                      ? p.result?.includes('Strike') || p.result?.includes('Foul')
-                                        ? 'bg-yellow-600 text-white'
-                                        : p.result?.includes('Ball')
-                                        ? 'bg-green-600 text-white'
-                                        : 'bg-amber-500 text-white'
-                                      : 'bg-gray-700 text-gray-500'
+                                    p.result?.includes('Strike') || p.result?.includes('Foul')
+                                      ? 'bg-red-600 text-white'
+                                      : p.result?.includes('Ball')
+                                      ? 'bg-green-600 text-white'
+                                      : p.isFinal && p.finalResult && ['Strikeout', 'Groundout', 'Flyout', 'Lineout', 'Pop Out', 'Forceout', 'Double Play', 'Triple Play', 'Fielders Choice Out', 'Grounded Into', 'Sac Fly', 'Sac Bunt', 'Sacrifice'].some(kw => p.finalResult.includes(kw))
+                                      ? 'bg-purple-600 text-white'
+                                      : p.isFinal
+                                      ? 'bg-blue-500 text-white'
+                                      : 'bg-gray-500 text-white'
                                   } ${i === currentPitch.pitchNum - 1 ? 'ring-2 ring-white' : ''}`}
                                 >
                                   {i + 1}
@@ -1931,7 +1993,7 @@
               </div>
 
               <div className="text-center mt-3 sm:mt-6 text-gray-600 text-xs sm:text-sm">
-                Replay<span className="text-gray-500">Baseball</span> • Watch any game, spoiler-free
+                Replay<span className="text-gray-500">Baseball</span> • Replay any game, spoiler-free
               </div>
             </div>
           </div>
