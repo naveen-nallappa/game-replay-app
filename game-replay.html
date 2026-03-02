@@ -23,6 +23,17 @@
     }
     .flip-animate { animation: flip-down 0.3s ease-in-out; }
 
+    @keyframes fadeInOut {
+      0% { opacity: 0; }
+      15% { opacity: 1; }
+      75% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes slideUp {
+      0% { transform: translateY(20px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+
     .scoreboard-digit {
       background: linear-gradient(180deg, #1f1f1f 0%, #0a0a0a 50%, #1a1a1a 50%, #0f0f0f 100%);
       border: 1px solid #333;
@@ -993,7 +1004,9 @@
       const [scoringPlaysOnly, setScoringPlaysOnly] = useState(false);
       const [celebrating, setCelebrating] = useState(false);
       const [scoringTeam, setScoringTeam] = useState(null);
+      const [inningTransition, setInningTransition] = useState(null);
       const prevStepRef = useRef(0);
+      const prevHalfInningRef = useRef(null);
       const hasLoadedRandomGame = useRef(false);
 
       // Deep-link: auto-load game from URL gamePk param
@@ -1132,6 +1145,24 @@
       };
 
       const currentHalfInning = getCurrentHalfInning();
+
+      // Detect half-inning transitions and show overlay
+      useEffect(() => {
+        if (!gameData || currentStep === 0 || mode !== 'inning') {
+          prevHalfInningRef.current = currentHalfInning ? `${currentHalfInning.inning}-${currentHalfInning.isTop}` : null;
+          return;
+        }
+        const key = currentHalfInning ? `${currentHalfInning.inning}-${currentHalfInning.isTop}` : null;
+        if (key && prevHalfInningRef.current && key !== prevHalfInningRef.current) {
+          const half = currentHalfInning.isTop ? 'Top' : 'Bottom';
+          const ord = currentHalfInning.inning + (currentHalfInning.inning === 1 ? 'st' : currentHalfInning.inning === 2 ? 'nd' : currentHalfInning.inning === 3 ? 'rd' : 'th');
+          setInningTransition(`${currentHalfInning.isTop ? '▲' : '▼'} ${half} ${ord}`);
+          const t = setTimeout(() => setInningTransition(null), 1500);
+          prevHalfInningRef.current = key;
+          return () => clearTimeout(t);
+        }
+        prevHalfInningRef.current = key;
+      }, [currentStep, currentHalfInning, mode, gameData]);
 
       useEffect(() => {
         if (!isPlaying || currentStep >= maxSteps) {
@@ -1523,7 +1554,17 @@
 
               {/* Scoreboard - only shown in Half-Inning mode */}
               {mode === 'inning' && (
-              <div className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-gray-800 mb-3 sm:mb-6">
+              <div className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl overflow-hidden shadow-2xl border border-gray-800 mb-3 sm:mb-6 relative">
+                {/* Half-inning transition overlay */}
+                {inningTransition && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center bg-gray-950/90 backdrop-blur-sm rounded-2xl" style={{ animation: 'fadeInOut 1.5s ease-in-out forwards' }}>
+                    <div className="text-center">
+                      <div className="text-amber-400 text-3xl sm:text-5xl font-black tracking-wider mb-2" style={{ animation: 'slideUp 0.4s ease-out' }}>
+                        {inningTransition}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Status Badge */}
                 <div className="flex items-center justify-center pt-3 sm:pt-4">
                   <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-800/80 border border-gray-700">
