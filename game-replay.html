@@ -1562,35 +1562,35 @@
 
                 {/* Inning Grid - Half-innings */}
                 {mode === 'inning' && (
-                  <div className="border-t border-gray-700 overflow-x-auto">
-                    <div className="flex bg-gray-800 min-w-max">
+                  <div className="border-t border-gray-700">
+                    <div className="flex bg-gray-800 w-full">
                       {/* Team names column */}
-                      <div className="w-12 sm:w-16 flex flex-col border-r border-gray-700">
-                        <div className="h-8 flex items-center justify-center text-gray-500 text-xs sm:text-sm font-medium border-b border-gray-700 bg-gray-850">
+                      <div className="w-12 sm:w-16 flex-shrink-0 flex flex-col border-r border-gray-700">
+                        <div className="h-9 sm:h-10 flex items-center justify-center text-gray-500 text-xs sm:text-sm font-medium border-b border-gray-700 bg-gray-850">
                           {/* Empty header cell */}
                         </div>
-                        <div className="h-8 flex items-center justify-center text-xs sm:text-sm font-bold border-b border-gray-800" style={{ color: gameData.awayTeam.color }}>
+                        <div className="h-9 sm:h-10 flex items-center justify-center text-xs sm:text-sm font-bold border-b border-gray-800" style={{ color: gameData.awayTeam.color }}>
                           {gameData.awayTeam.abbreviation}
                         </div>
-                        <div className="h-8 flex items-center justify-center text-xs sm:text-sm font-bold" style={{ color: gameData.homeTeam.color }}>
+                        <div className="h-9 sm:h-10 flex items-center justify-center text-xs sm:text-sm font-bold" style={{ color: gameData.homeTeam.color }}>
                           {gameData.homeTeam.abbreviation}
                         </div>
                       </div>
-                      {/* Innings columns */}
-                      <div className="flex">
+                      {/* Innings columns - flex-1 to fill available space */}
+                      <div className="flex flex-1 min-w-0">
                         {inningsGrid.map((ig, i) => (
-                          <div key={i} className="flex flex-col border-r border-gray-700">
-                            <div className="w-7 h-8 sm:w-10 flex items-center justify-center text-xs sm:text-sm text-gray-400 font-medium border-b border-gray-700 bg-gray-850">
+                          <div key={i} className="flex-1 flex flex-col border-r border-gray-700 min-w-0">
+                            <div className="h-9 sm:h-10 flex items-center justify-center text-xs sm:text-sm text-gray-400 font-medium border-b border-gray-700 bg-gray-850">
                               {ig.inning}
                             </div>
-                            <div className={`w-7 h-8 sm:w-10 flex items-center justify-center font-mono text-sm border-b border-gray-800 ${ig.isCurrentTop ? 'bg-amber-900/40' : ''}`}>
+                            <div className={`h-9 sm:h-10 flex items-center justify-center font-mono text-sm sm:text-base border-b border-gray-800 ${ig.isCurrentTop ? 'bg-amber-900/40' : ''}`}>
                               {ig.topRevealed ? (
                                 <span className={ig.topRuns > 0 ? 'text-amber-400 font-bold' : 'text-gray-500'}>{ig.topRuns}</span>
                               ) : (
                                 <span className="text-gray-700">—</span>
                               )}
                             </div>
-                            <div className={`w-7 h-8 sm:w-10 flex items-center justify-center font-mono text-sm ${ig.isCurrentBottom ? 'bg-amber-900/40' : ''}`}>
+                            <div className={`h-9 sm:h-10 flex items-center justify-center font-mono text-sm sm:text-base ${ig.isCurrentBottom ? 'bg-amber-900/40' : ''}`}>
                               {ig.bottomRevealed ? (
                                 <span className={ig.bottomRuns > 0 ? 'text-amber-400 font-bold' : 'text-gray-500'}>{ig.bottomRuns}</span>
                               ) : (
@@ -1601,12 +1601,12 @@
                         ))}
                       </div>
                       {/* Runs total column */}
-                      <div className="flex flex-col border-l-2 border-amber-600 bg-gray-800/80">
-                        <div className="h-8 w-10 sm:w-12 flex items-center justify-center text-amber-400 text-xs sm:text-sm font-bold border-b border-gray-700">R</div>
-                        <div className="h-8 w-10 sm:w-12 flex items-center justify-center border-b border-gray-800">
+                      <div className="w-10 sm:w-14 flex-shrink-0 flex flex-col border-l-2 border-amber-600 bg-gray-800/80">
+                        <div className="h-9 sm:h-10 flex items-center justify-center text-amber-400 text-xs sm:text-sm font-bold border-b border-gray-700">R</div>
+                        <div className="h-9 sm:h-10 flex items-center justify-center border-b border-gray-800">
                           <span className="font-mono text-amber-400 font-bold text-sm sm:text-base">{scores.away}</span>
                         </div>
-                        <div className="h-8 w-10 sm:w-12 flex items-center justify-center">
+                        <div className="h-9 sm:h-10 flex items-center justify-center">
                           <span className="font-mono text-amber-400 font-bold text-sm sm:text-base">{scores.home}</span>
                         </div>
                       </div>
