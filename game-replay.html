@@ -818,6 +818,12 @@
       </div>
     );
 
+    const HalfInningDivider = () => (
+      <div className="my-2">
+        <div className="border-t border-gray-600"></div>
+      </div>
+    );
+
     const PlayCard = ({ play, homeTeam, awayTeam, isNew, showNonScoring }) => {
       const team = play.isTop ? awayTeam : homeTeam;
       const halfLabel = play.isTop ? "▲" : "▼";
@@ -932,7 +938,21 @@
     function GameReplayApp() {
       const [view, setView] = useState('search'); // Start with today's games
       const [selectedDate, setSelectedDate] = useState(() => {
-        return new Date().toISOString().split('T')[0];
+        // Get current time in Eastern Time
+        const now = new Date();
+        const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const etHour = et.getHours();
+
+        // Before 11am ET, show yesterday's games (last night's games are more interesting)
+        if (etHour < 11) {
+          et.setDate(et.getDate() - 1);
+        }
+
+        // Use local date parts (not toISOString which converts to UTC)
+        const y = et.getFullYear();
+        const m = String(et.getMonth() + 1).padStart(2, '0');
+        const d = String(et.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
       });
       const [games, setGames] = useState([]);
       const [isLoadingGames, setIsLoadingGames] = useState(false);
@@ -1071,7 +1091,25 @@
           if (currentStep >= maxSteps) setIsPlaying(false);
           return;
         }
-        const timer = setTimeout(() => setCurrentStep(prev => prev + 1), speed);
+
+        // Check if the next step crosses a half-inning boundary - add a pause
+        let delay = speed;
+        if (currentStep > 0 && (mode === 'play' || mode === 'pitch')) {
+          let currItem, nextItem;
+          if (mode === 'play') {
+            const plays = getFilteredPlays();
+            currItem = plays[currentStep - 1];
+            nextItem = plays[currentStep];
+          } else if (mode === 'pitch') {
+            currItem = gameData.pitches?.[currentStep - 1];
+            nextItem = gameData.pitches?.[currentStep];
+          }
+          if (currItem && nextItem && (currItem.inning !== nextItem.inning || currItem.isTop !== nextItem.isTop)) {
+            delay = Math.max(speed * 2, 1500); // Short pause at half-inning changes
+          }
+        }
+
+        const timer = setTimeout(() => setCurrentStep(prev => prev + 1), delay);
         return () => clearTimeout(timer);
       }, [isPlaying, currentStep, speed, maxSteps]);
 
@@ -1237,8 +1275,8 @@
             bottomRuns: bottomHalf?.runs || 0,
             topRevealed: topIndex !== -1 && topIndex < currentStep,
             bottomRevealed: bottomIndex !== -1 && bottomIndex < currentStep,
-            isCurrentTop: topIndex === currentStep - 1,
-            isCurrentBottom: bottomIndex === currentStep - 1
+            isCurrentTop: currentStep > 0 && topIndex === currentStep - 1,
+            isCurrentBottom: currentStep > 0 && bottomIndex === currentStep - 1
           });
         }
 
@@ -1615,15 +1653,33 @@
                     </button>
                   </div>
                   <div className="max-h-24 sm:max-h-40 overflow-y-auto">
-                    {filteredPlays.slice(0, currentStep).reverse().map((play, i) => (
-                      <PlayCard
-                        key={i}
-                        play={play}
-                        homeTeam={gameData.homeTeam}
-                        awayTeam={gameData.awayTeam}
-                        isNew={i === 0 && isPlaying}
-                      />
-                    ))}
+                    {/* Show "end of half" divider when the latest play is the last of its half-inning */}
+                    {(() => {
+                      const nextPlay = filteredPlays[currentStep];
+                      const latestPlay = currentStep > 0 ? filteredPlays[currentStep - 1] : null;
+                      if (nextPlay && latestPlay && (nextPlay.inning !== latestPlay.inning || nextPlay.isTop !== latestPlay.isTop)) {
+                        return <HalfInningDivider />;
+                      }
+                      return null;
+                    })()}
+                    {filteredPlays.slice(0, currentStep).reverse().map((play, i, arr) => {
+                      // Show divider when half-inning changes between adjacent plays in the reversed list
+                      const nextInList = arr[i + 1];
+                      const showDivider = nextInList && (nextInList.inning !== play.inning || nextInList.isTop !== play.isTop);
+                      return (
+                        <React.Fragment key={i}>
+                          <PlayCard
+                            play={play}
+                            homeTeam={gameData.homeTeam}
+                            awayTeam={gameData.awayTeam}
+                            isNew={i === 0 && isPlaying}
+                          />
+                          {showDivider && (
+                            <HalfInningDivider />
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1637,10 +1693,19 @@
                   {(() => {
                     const currentPitch = gameData.pitches[currentStep - 1];
                     if (!currentPitch) return null;
+                    const nextPitch = gameData.pitches[currentStep];
+                    const isEndOfHalfInning = nextPitch && (nextPitch.inning !== currentPitch.inning || nextPitch.isTop !== currentPitch.isTop);
                     const isHR = isHomeRun(currentPitch.finalResult) || isHomeRun(currentPitch.result);
 
                     return (
                       <>
+                        {/* End-of-half-inning line - shown with the last pitch of the half */}
+                        {isEndOfHalfInning && (
+                          <div className="mb-3">
+                            <div className="border-t border-gray-600"></div>
+                          </div>
+                        )}
+
                         {/* Home Run Banner */}
                         {celebrating && isHR && (
                           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 animate-bounce">
