@@ -23,17 +23,6 @@
     }
     .flip-animate { animation: flip-down 0.3s ease-in-out; }
 
-    @keyframes fadeInOut {
-      0% { opacity: 0; }
-      15% { opacity: 1; }
-      75% { opacity: 1; }
-      100% { opacity: 0; }
-    }
-    @keyframes slideUp {
-      0% { transform: translateY(20px); opacity: 0; }
-      100% { transform: translateY(0); opacity: 1; }
-    }
-
     .scoreboard-digit {
       background: linear-gradient(180deg, #1f1f1f 0%, #0a0a0a 50%, #1a1a1a 50%, #0f0f0f 100%);
       border: 1px solid #333;
@@ -902,6 +891,12 @@
       </div>
     );
 
+    const HalfInningDivider = () => (
+      <div className="my-2">
+        <div className="border-t border-gray-600"></div>
+      </div>
+    );
+
     const PlayCard = ({ play, homeTeam, awayTeam, isNew, showNonScoring, highlight }) => {
       const team = play.isTop ? awayTeam : homeTeam;
       const halfLabel = play.isTop ? "▲" : "▼";
@@ -1055,19 +1050,21 @@
 
       const [view, setView] = useState(initialGamePk ? 'loading' : 'search');
       const [selectedDate, setSelectedDate] = useState(() => {
-        // Default to yesterday's games until noon ET the next day,
-        // so morning users see last night's completed games
+        // Get current time in Eastern Time
         const now = new Date();
-        const etOffset = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
-        const etNow = new Date(etOffset);
-        const etHour = etNow.getHours();
-        if (etHour < 12) {
-          // Before noon ET — show yesterday
-          const yesterday = new Date(now);
-          yesterday.setDate(yesterday.getDate() - 1);
-          return yesterday.toISOString().split('T')[0];
+        const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const etHour = et.getHours();
+
+        // Before 11am ET, show yesterday's games (last night's games are more interesting)
+        if (etHour < 11) {
+          et.setDate(et.getDate() - 1);
         }
-        return now.toISOString().split('T')[0];
+
+        // Use local date parts (not toISOString which converts to UTC)
+        const y = et.getFullYear();
+        const m = String(et.getMonth() + 1).padStart(2, '0');
+        const d = String(et.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
       });
       const [games, setGames] = useState([]);
       const [isLoadingGames, setIsLoadingGames] = useState(false);
@@ -1081,12 +1078,8 @@
       const [scoringPlaysOnly, setScoringPlaysOnly] = useState(false);
       const [celebrating, setCelebrating] = useState(false);
       const [scoringTeam, setScoringTeam] = useState(null);
-      const [inningTransition, setInningTransition] = useState(null);
       const prevStepRef = useRef(0);
-      const prevHalfInningRef = useRef(null);
       const highlightPauseStepRef = useRef(null);
-      const inningTransitionTimerRef = useRef(null);
-      const isPlayingRef = useRef(false);
       // Deep-link: auto-load game from URL gamePk param
       useEffect(() => {
         if (!initialGamePk) return;
@@ -1224,54 +1217,17 @@
 
       const currentHalfInning = getCurrentHalfInning();
 
-      // Keep isPlayingRef in sync for use inside timeouts
-      useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
-
-      // Helper: get half-inning key for a play/pitch item
-      const getHalfInningKey = (item) => item ? `${item.inning}-${item.isTop}` : null;
-
-      // Helper: build transition label from a play/pitch item
-      const buildTransitionLabel = (item) => {
-        const half = item.isTop ? 'Top' : 'Bottom';
-        const ord = item.inning + (item.inning === 1 ? 'st' : item.inning === 2 ? 'nd' : item.inning === 3 ? 'rd' : 'th');
-        return `${item.isTop ? '▲' : '▼'} ${half} ${ord}`;
-      };
-
-      // Check if moving between two steps crosses a half-inning boundary.
-      // Returns the target item if a crossing is detected, null otherwise.
-      const detectHalfInningCrossing = (fromStep, toStep) => {
-        if (fromStep <= 0 || mode === 'inning' || !gameData) return null;
-        const items = mode === 'play' ? getFilteredPlays() : gameData.pitches;
-        const fromItem = items?.[fromStep - 1];
-        const toItem = items?.[toStep - 1];
-        if (fromItem && toItem && getHalfInningKey(fromItem) !== getHalfInningKey(toItem)) {
-          return toItem;
-        }
-        return null;
-      };
-
-      // Show transition overlay (used by both auto-play and manual stepping)
-      const showTransition = (targetItem) => {
-        setInningTransition(buildTransitionLabel(targetItem));
-        clearTimeout(inningTransitionTimerRef.current);
-        inningTransitionTimerRef.current = setTimeout(() => setInningTransition(null), 1500);
-      };
-
-      // Manual step: advance one step, showing transition overlay simultaneously if needed
+      // Manual step: advance one step
       const handleStepForward = () => {
         if (currentStep >= maxSteps) return;
         setIsPlaying(false);
-        const crossing = detectHalfInningCrossing(currentStep, currentStep + 1);
-        if (crossing) showTransition(crossing);
         setCurrentStep(prev => prev + 1);
       };
 
-      // Manual step: go back one step, showing transition overlay simultaneously if needed
+      // Manual step: go back one step
       const handleStepBack = () => {
         if (currentStep <= 0) return;
         setIsPlaying(false);
-        const crossing = detectHalfInningCrossing(currentStep, currentStep - 1);
-        if (crossing) showTransition(crossing);
         setCurrentStep(prev => prev - 1);
       };
 
@@ -1281,35 +1237,27 @@
           if (currentStep >= maxSteps) setIsPlaying(false);
           return;
         }
-        // Wait for transition overlay to complete before advancing
-        if (inningTransition) return;
 
-        // Peek ahead: will the next step cross a half-inning boundary?
-        const crossing = detectHalfInningCrossing(currentStep, currentStep + 1);
-        if (crossing) {
-          // Show transition BEFORE advancing — step stays put
-          const label = buildTransitionLabel(crossing);
-          setInningTransition(label);
-          clearTimeout(inningTransitionTimerRef.current);
-          inningTransitionTimerRef.current = setTimeout(() => {
-            // CRITICAL: Use unstable_batchedUpdates because ReactDOM.render() (legacy mode)
-            // does NOT auto-batch state updates in setTimeout. Without this, setInningTransition(null)
-            // triggers an immediate re-render where currentStep is still the old value, causing
-            // the auto-play effect to detect the same crossing again → double transition.
-            ReactDOM.unstable_batchedUpdates(() => {
-              setInningTransition(null);
-              // Only advance if still playing (user may have paused during transition)
-              if (isPlayingRef.current) {
-                setCurrentStep(prev => prev + 1);
-              }
-            });
-          }, 1500);
-          return;
+        // Check if the next step crosses a half-inning boundary - add a pause
+        let delay = speed;
+        if (currentStep > 0 && (mode === 'play' || mode === 'pitch')) {
+          let currItem, nextItem;
+          if (mode === 'play') {
+            const plays = getFilteredPlays();
+            currItem = plays[currentStep - 1];
+            nextItem = plays[currentStep];
+          } else if (mode === 'pitch') {
+            currItem = gameData.pitches?.[currentStep - 1];
+            nextItem = gameData.pitches?.[currentStep];
+          }
+          if (currItem && nextItem && (currItem.inning !== nextItem.inning || currItem.isTop !== nextItem.isTop)) {
+            delay = Math.max(speed * 2, 1500); // Short pause at half-inning changes
+          }
         }
 
-        const timer = setTimeout(() => setCurrentStep(prev => prev + 1), speed);
+        const timer = setTimeout(() => setCurrentStep(prev => prev + 1), delay);
         return () => clearTimeout(timer);
-      }, [isPlaying, currentStep, speed, maxSteps, inningTransition]);
+      }, [isPlaying, currentStep, speed, maxSteps]);
 
       // Auto-pause when a highlight video appears
       useEffect(() => {
@@ -1366,8 +1314,6 @@
         setCurrentStep(0);
         setIsPlaying(false);
         highlightPauseStepRef.current = null;
-        setInningTransition(null);
-        clearTimeout(inningTransitionTimerRef.current);
       };
 
       const handlePlayPause = () => {
@@ -1379,8 +1325,6 @@
         setIsPlaying(false);
         setCurrentStep(0);
         highlightPauseStepRef.current = null;
-        setInningTransition(null);
-        clearTimeout(inningTransitionTimerRef.current);
       };
 
       const handleModeChange = (newMode) => {
@@ -1388,8 +1332,6 @@
 
         setIsPlaying(false);
         highlightPauseStepRef.current = null;
-        setInningTransition(null);
-        clearTimeout(inningTransitionTimerRef.current);
 
         if (currentGamePk) updateUrl({ gamePk: currentGamePk, mode: newMode });
 
@@ -1484,8 +1426,8 @@
             bottomRuns: bottomHalf?.runs || 0,
             topRevealed: topIndex !== -1 && topIndex < currentStep,
             bottomRevealed: bottomIndex !== -1 && bottomIndex < currentStep,
-            isCurrentTop: topIndex === currentStep - 1,
-            isCurrentBottom: bottomIndex === currentStep - 1
+            isCurrentTop: currentStep > 0 && topIndex === currentStep - 1,
+            isCurrentBottom: currentStep > 0 && bottomIndex === currentStep - 1
           });
         }
 
@@ -1797,16 +1739,6 @@
               {/* Play-by-Play with Score Bug */}
               {mode === 'play' && currentStep > 0 && (
                 <div className="bg-gray-900 rounded-xl sm:rounded-2xl p-2 sm:p-4 mb-2 sm:mb-6 border border-gray-800 relative overflow-hidden">
-                  {/* Half-inning transition overlay */}
-                  {inningTransition && (
-                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-gray-950/90 backdrop-blur-sm rounded-2xl" style={{ animation: 'fadeInOut 1.5s ease-in-out forwards' }}>
-                      <div className="text-center">
-                        <div className="text-amber-400 text-3xl sm:text-5xl font-black tracking-wider mb-2" style={{ animation: 'slideUp 0.4s ease-out' }}>
-                          {inningTransition}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   {/* Fireworks overlay */}
                   <Fireworks active={celebrating} duration={2500} />
 
@@ -1892,17 +1824,32 @@
                     </button>
                   </div>
                   <div className="max-h-96 sm:max-h-[500px] overflow-y-auto transition-all duration-300">
-                    {filteredPlays.slice(0, currentStep).reverse().map((play, i) => {
+                    {/* Show "end of half" divider when the latest play is the last of its half-inning */}
+                    {(() => {
+                      const nextPlay = filteredPlays[currentStep];
+                      const latestPlay = currentStep > 0 ? filteredPlays[currentStep - 1] : null;
+                      if (nextPlay && latestPlay && (nextPlay.inning !== latestPlay.inning || nextPlay.isTop !== latestPlay.isTop)) {
+                        return <HalfInningDivider />;
+                      }
+                      return null;
+                    })()}
+                    {filteredPlays.slice(0, currentStep).reverse().map((play, i, arr) => {
+                      const nextInList = arr[i + 1];
+                      const showDivider = nextInList && (nextInList.inning !== play.inning || nextInList.isTop !== play.isTop);
                       const hl = play.atBatIndex != null ? gameData.highlightMap?.get(play.atBatIndex) : null;
                       return (
-                        <PlayCard
-                          key={i}
-                          play={play}
-                          homeTeam={gameData.homeTeam}
-                          awayTeam={gameData.awayTeam}
-                          isNew={i === 0 && isPlaying}
-                          highlight={hl}
-                        />
+                        <React.Fragment key={i}>
+                          <PlayCard
+                            play={play}
+                            homeTeam={gameData.homeTeam}
+                            awayTeam={gameData.awayTeam}
+                            isNew={i === 0 && isPlaying}
+                            highlight={hl}
+                          />
+                          {showDivider && (
+                            <HalfInningDivider />
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </div>
@@ -1912,26 +1859,25 @@
               {/* Pitch-by-Pitch View */}
               {mode === 'pitch' && gameData.pitches && currentStep > 0 && (
                 <div className="bg-gray-900 rounded-xl sm:rounded-2xl p-2 sm:p-4 mb-2 sm:mb-6 border border-gray-800 relative overflow-hidden">
-                  {/* Half-inning transition overlay */}
-                  {inningTransition && (
-                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-gray-950/90 backdrop-blur-sm rounded-2xl" style={{ animation: 'fadeInOut 1.5s ease-in-out forwards' }}>
-                      <div className="text-center">
-                        <div className="text-amber-400 text-3xl sm:text-5xl font-black tracking-wider mb-2" style={{ animation: 'slideUp 0.4s ease-out' }}>
-                          {inningTransition}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   {/* Fireworks overlay */}
                   <Fireworks active={celebrating} duration={2500} />
 
                   {(() => {
                     const currentPitch = gameData.pitches[currentStep - 1];
                     if (!currentPitch) return null;
+                    const nextPitch = gameData.pitches[currentStep];
+                    const isEndOfHalfInning = nextPitch && (nextPitch.inning !== currentPitch.inning || nextPitch.isTop !== currentPitch.isTop);
                     const isHR = isHomeRun(currentPitch.finalResult) || isHomeRun(currentPitch.result);
 
                     return (
                       <>
+                        {/* End-of-half-inning line - shown with the last pitch of the half */}
+                        {isEndOfHalfInning && (
+                          <div className="mb-3">
+                            <div className="border-t border-gray-600"></div>
+                          </div>
+                        )}
+
                         {/* Home Run Banner */}
                         {celebrating && isHR && (
                           <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 animate-bounce">
